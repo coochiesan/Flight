@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flight">
+<meta name="theme-color" content="#0a0c0f">
+<title>Flight Plan</title>
+<style>
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0c0f;--surf:#111318;--surf2:#181c22;--surf3:#1e2530;
+  --border:#1e2530;--border2:#2a3340;
+  --text:#e8eaf0;--text2:#8892a4;--text3:#4a5568;
+  --blue:#3b82f6;--blue-l:#1e3a5f;--blue-ll:#0d1f35;
+  --green:#10b981;--green-l:#0d3d2e;
+  --amber:#f59e0b;--amber-l:#3d2a08;
+  --purple:#a855f7;--purple-l:#2d1a4a;
+  --red:#ef4444;--red-l:#3d1414;
+  --teal:#14b8a6;--teal-l:#0d332f;
+  --pink:#ec4899;--pink-l:#3d1229;
+  --radius:10px;--radius-sm:6px;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bot:env(safe-area-inset-bottom,0px);
+}
+body.light{
+  --bg:#F5F4F0;--surf:#FFFFFF;--surf2:#F1EFE8;--surf3:#E8E6DF;
+  --border:#E2DFD6;--border2:#D3D0C7;
+  --text:#1A1A18;--text2:#5F5E5A;--text3:#9CA39A;
+  --blue:#185FA5;--blue-l:#E6F1FB;--blue-ll:#B5D4F4;
+  --green:#3B6D11;--green-l:#EAF3DE;
+  --amber:#854F0B;--amber-l:#FAEEDA;
+  --purple:#534AB7;--purple-l:#EEEDFE;
+  --red:#A32D2D;--red-l:#FCEBEB;
+  --teal:#0F6E56;--teal-l:#E1F5EE;
+  --pink:#993556;--pink-l:#FBEAF0;
+}
+html,body{height:100%;height:100dvh;margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;font-size:14px;overflow:hidden;position:fixed;width:100%}
+
+/* ── Layout ── */
+#app{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:0;box-sizing:border-box;overflow:hidden}
+#header{flex-shrink:0;padding:6px 14px 5px;background:var(--surf);border-bottom:1px solid var(--border)}
+#content{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 14px 12px}
+#nav{flex-shrink:0;display:flex;background:var(--surf);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom,0px)}
+
+/* ── Header ── */
+.hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.hdr-title{font-size:16px;font-weight:700;letter-spacing:-0.3px}
+.hdr-time{font-family:'SF Mono',monospace;font-size:12px;color:var(--text2);text-align:right}
+.mode-row{display:flex;gap:5px;margin-top:5px}
+.mode-btn{flex:1;padding:5px 4px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surf2);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
+.mode-btn.active{background:var(--blue-ll);border-color:var(--blue);color:var(--blue)}
+
+/* ── Nav ── */
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;border:none;background:none;color:var(--text3);font-size:9px;font-weight:600;cursor:pointer;gap:3px;letter-spacing:0.3px;text-transform:uppercase}
+.nav-btn svg{width:18px;height:18px}
+.nav-btn.active{color:var(--blue)}
+
+/* ── Cards ── */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)}
+.card-hdr-left{display:flex;align-items:center;gap:8px}
+.card-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.card-title{font-size:13px;font-weight:600}
+.card-time{font-size:11px;color:var(--text2);font-family:'SF Mono',monospace}
+
+/* ── Task rows ── */
+.task{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.task:last-child{border-bottom:none}
+.task-check{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--border2);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.task-check.done{background:var(--green);border-color:var(--green)}
+.task-check.done svg{display:block}
+.task-check svg{display:none;width:12px;height:12px}
+.task-body{flex:1;min-width:0}
+.task-label{font-size:13px;font-weight:500;line-height:1.3}
+.task-label.done{opacity:.4;text-decoration:line-through}
+.task-sub{font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4}
+.task-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;flex-shrink:0;white-space:nowrap}
+
+/* ── Progress bar ── */
+.progress-wrap{padding:10px 14px 12px;background:var(--surf2)}
+.progress-row{display:flex;justify-content:space-between;margin-bottom:6px}
+.progress-label{font-size:11px;color:var(--text2)}
+.progress-val{font-size:11px;font-weight:600;color:var(--green)}
+.progress-bar{height:4px;background:var(--border2);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:var(--green);border-radius:2px;transition:width .3s}
+
+/* ── Workout ── */
+.ex-group{margin-bottom:6px}
+.ex-group-hdr{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;padding:8px 14px 4px}
+.ex-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border)}
+.ex-row:last-child{border-bottom:none}
+.ex-name{flex:1;font-size:13px;font-weight:500}
+.ex-sets{font-size:12px;color:var(--blue);font-weight:600;font-family:'SF Mono',monospace;white-space:nowrap}
+.ex-log{display:flex;gap:6px;align-items:center}
+.ex-input{width:52px;padding:4px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:12px;text-align:center;font-family:'SF Mono',monospace}
+.ex-x{font-size:11px;color:var(--text3)}
+.ex-cue{font-size:10px;color:var(--text3);padding:2px 14px 6px;line-height:1.4}
+
+/* ── Layover ── */
+.tz-bar{display:flex;gap:1px;margin-bottom:8px}
+.tz-block{flex:1;background:var(--surf2);border-radius:var(--radius-sm);padding:10px 12px}
+.tz-label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px}
+.tz-time{font-family:'SF Mono',monospace;font-size:18px;font-weight:700}
+.tz-body{font-size:10px;color:var(--text2);margin-top:2px}
+.tz-bar .tz-block:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
+.tz-bar .tz-block:last-child{border-top-left-radius:0;border-bottom-left-radius:0}
+
+.timeline-item{display:flex;gap:12px;padding:8px 0;position:relative}
+.tl-time{width:80px;flex-shrink:0;text-align:right}
+.tl-local{font-size:13px;font-weight:600;font-family:'SF Mono',monospace}
+.tl-pdt{font-size:10px;color:var(--text3);font-family:'SF Mono',monospace}
+.tl-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0;margin-top:3px}
+.tl-body{flex:1}
+.tl-title{font-size:13px;font-weight:600;line-height:1.3}
+.tl-sub{font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4}
+.tl-line{width:1px;background:var(--border2);position:absolute;left:92px;top:22px;bottom:-8px}
+.timeline-item:last-child .tl-line{display:none}
+.alert-row{display:flex;align-items:center;gap:8px;padding:6px 0}
+.alert-time-input{padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:12px;font-family:'SF Mono',monospace;width:90px}
+.alert-label{font-size:12px;color:var(--text2);flex:1}
+.alert-toggle{width:36px;height:20px;border-radius:10px;border:none;cursor:pointer;position:relative;flex-shrink:0;transition:background .15s}
+.alert-toggle.on{background:var(--blue)}
+.alert-toggle.off{background:var(--border2)}
+.alert-toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;transition:left .15s}
+.alert-toggle.on::after{left:18px}
+.alert-toggle.off::after{left:2px}
+
+/* ── Bloodwork ── */
+.bw-row{display:flex;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border)}
+.bw-row:last-child{border-bottom:none}
+.bw-name{flex:1;font-size:13px;font-weight:500}
+.bw-range{font-size:11px;color:var(--text3);margin-right:8px}
+.bw-val{font-family:'SF Mono',monospace;font-size:13px;font-weight:600;width:70px;text-align:right}
+.bw-status{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-left:6px}
+.bw-input{width:70px;padding:3px 6px;border-radius:4px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:12px;font-family:'SF Mono',monospace;text-align:right}
+
+/* ── Section label ── */
+.section-label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin:14px 0 6px}
+
+/* ── Macro bar ── */
+.macro-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.macro-cell{background:var(--surf2);border-radius:var(--radius-sm);padding:8px 10px;text-align:center}
+.macro-val{font-size:16px;font-weight:700;font-family:'SF Mono',monospace}
+.macro-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+
+/* ── Notification banner ── */
+#notif-banner{background:var(--blue-ll);border:1px solid var(--blue);border-radius:var(--radius);padding:10px 14px;margin-bottom:8px;display:none}
+#notif-banner.show{display:block}
+.notif-title{font-size:13px;font-weight:600;color:var(--blue);margin-bottom:2px}
+.notif-sub{font-size:11px;color:var(--text2)}
+
+/* ── Empty state ── */
+.empty{text-align:center;padding:40px 20px;color:var(--text3)}
+
+/* ── Utilities ── */
+.flex-row{display:flex;align-items:center;gap:8px}
+.spacer{flex:1}
+.pill{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
+.mt8{margin-top:8px}
+
+</style>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js')
+    .then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            console.log('Protocol app updated');
+          }
+        });
+      });
+    })
+    .catch(err => console.log('SW registration failed:', err));
+}
+</script>
+</head>
+<body>
+<div id="app">
+<div id="offline-bar" style="display:none;background:var(--amber-l);border-bottom:1px solid var(--amber);padding:6px 16px;font-size:11px;color:var(--amber);font-weight:600;text-align:center">
+  OFFLINE MODE — all data saved locally
+</div>
+<div id="header">
+  <div class="hdr-top">
+    <div>
+      <div class="hdr-title">Protocol</div>
+      <div id="date-display" style="font-size:11px;color:var(--text2);margin-top:1px"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="theme-toggle" onclick="toggleTheme()" style="background:var(--surf2);border:1px solid var(--border2);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;white-space:nowrap">Light</button>
+      <div class="hdr-time">
+        <div id="clock-local" style="font-size:16px;font-weight:700;font-family:'SF Mono',monospace"></div>
+        <div id="clock-pdt" style="font-size:10px;color:var(--text3)"></div>
+      </div>
+    </div>
+  </div>
+  <div class="mode-row">
+    <div class="mode-btn active" onclick="setMode('preflight')" id="btn-preflight">Preflight</div>
+    <div class="mode-btn" onclick="setMode('flight')" id="btn-flight">Flight</div>
+    <div class="mode-btn" onclick="setMode('arrival')" id="btn-arrival">Arrival</div>
+  </div>
+</div>
+
+<div id="content"></div>
+
+<div id="nav">
+  <button class="nav-btn active" id="nav-flight" onclick="setTab('flight')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 .99h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+    Flight
+  </button>
+  <button class="nav-btn" id="nav-layover" onclick="setTab('layover')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16l-9-9-9 9"/><path d="M12 7v14"/><path d="M5 21h14"/></svg>
+    Layover
+  </button>
+</div>
+</div>
+<script>
+
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+let mode = 'preflight';
+let tab = 'flight';
+let state = {};
+
+function loadState() {
+  try { state = JSON.parse(localStorage.getItem('protocol_state') || '{}'); } catch(e) { state = {}; }
+  if (!state.checks) state.checks = {};
+  if (!state.weights) state.weights = {};
+  if (!state.alerts) state.alerts = {};
+  if (!state.layover) state.layover = { tz: 'Europe/London', tzName: 'London BST' };
+  if (!state.flight) state.flight = {};
+  if (state.theme === 'light') applyTheme('light');
+}
+
+function toggleTheme() {
+  const next = document.body.classList.contains('light') ? 'dark' : 'light';
+  applyTheme(next);
+  state.theme = next;
+  saveState();
+}
+
+function applyTheme(t) {
+  const btn = document.getElementById('theme-toggle');
+  if (t === 'light') {
+    document.body.classList.add('light');
+    if (btn) btn.textContent = 'Dark';
+  } else {
+    document.body.classList.remove('light');
+    if (btn) btn.textContent = 'Light';
+  }
+}
+function saveState() { localStorage.setItem('protocol_state', JSON.stringify(state)); }
+
+function setMode(m) {
+  mode = m;
+  ['preflight','flight','arrival'].forEach(x => {
+    const el = document.getElementById('btn-'+x); if(el) el.classList.toggle('active', x === m);
+  });
+  render();
+}
+
+function setTab(t) {
+  tab = t;
+  ['flight', 'layover'].forEach(x => {
+    const el = document.getElementById('nav-'+x); if(el) el.classList.toggle('active', x===t);
+  });
+  render();
+}
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const day = DAYS[now.getDay()];
+  const mon = MONTHS[now.getMonth()];
+  document.getElementById('date-display').textContent = `${day}, ${mon} ${now.getDate()}`;
+
+  const localH = String(now.getHours()).padStart(2,'0');
+  const localM = String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('clock-local').textContent = `${localH}:${localM}`;
+
+  const pdtOffset = -7 * 60;
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const pdt = new Date(utc + pdtOffset * 60000);
+  const pdtH = String(pdt.getHours()).padStart(2,'0');
+  const pdtM = String(pdt.getMinutes()).padStart(2,'0');
+  const isSameDay = pdt.getDate() === now.getDate();
+  document.getElementById('clock-pdt').textContent = `${pdtH}:${pdtM} PDT${isSameDay ? '' : ' (+1)'}`;
+}
+
+// ── Protocol data ──────────────────────────────────────────────────────────
+const LAYOVER_TIMELINE = [
+  { bst:'13:50', pdt:'05:50', color:'#3b82f6', title:'Hotel check-in', sub:'Scenario A (aircraft sleep): horizontal rest only — do NOT attempt to sleep\nScenario B (no aircraft sleep): 90-min timed nap — set TWO alarms', alertKey:'checkin' },
+  { bst:'~14:00', pdt:'~06:00', color:'#a855f7', title:'SS-31 1mg + NMN 1g sublingual + BPC-157 (1 of 2)', sub:'Full protocol on waking doses · eat 40–50g protein · hydrate aggressively', alertKey:'waking_doses' },
+  { bst:'~15:30', pdt:'~07:30', color:'#f59e0b', title:'[Scenario B] Force wake from nap', sub:'Get up immediately — do NOT snooze · cold water on face · stay upright · inertia clears in 10–15 min', alertKey:'nap_wake' },
+  { bst:'17:00–18:00', pdt:'09:00–10:00', color:'#10b981', title:'Zone 2 outdoors 40–50 min', sub:'Optimal body-clock window · cortisol aligned · daylight exposure anchors home clock · NOT intervals', alertKey:'workout' },
+  { bst:'~19:00', pdt:'~11:00', color:'#ec4899', title:'Hot shower 10–15 min', sub:'Core temp rebound targets 20:30 BST sleep onset · hot water drives core temp drop for sleep onset', alertKey:'shower' },
+  { bst:'19:30–20:30', pdt:'11:30–12:30', color:'#14b8a6', title:'Protein meal + evening protocol', sub:'Frog Fuel x2 · BPC-157 (2 of 2) · Creatine 5g · Glycine 3g · L-Theanine 200mg · Apigenin 50mg · Turmeric 750mg', alertKey:'eve_protocol' },
+  { bst:'20:30', pdt:'12:30', color:'#7c3aed', title:'SLEEP — target 7+ hours', sub:'Mag 400mg · blackout + eye mask + earplugs · alarm 04:00–04:15 BST · three sleep drivers aligned', alertKey:'sleep' },
+  { bst:'04:00–04:15', pdt:'20:00 (prev)', color:'#f59e0b', title:'Wake — departure prep', sub:'Ostarine + SS-31 + NMN · light breakfast · leave hotel 06:00 BST', alertKey:'wake_depart' },
+];
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+function groupBy(arr, key) {
+  const map = {};
+  arr.forEach(item => {
+    if (!map[item[key]]) map[item[key]] = [];
+    map[item[key]].push(item);
+  });
+  return map;
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+function render() {
+  const c = document.getElementById('content');
+  if (tab === 'flight') {
+    if (mode === 'preflight') renderPreflight(c);
+    else { renderFlight(c); setTimeout(updateBreakCountdowns, 50); }
+  }
+  else if (tab === 'layover') renderLayover(c);
+}
+
+function renderLayover(c) {
+  const now = new Date();
+  const pdtOffsetMin = -7 * 60;
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const pdt = new Date(utc + pdtOffsetMin * 60000);
+  const lay = state.layover || {};
+  const localOffsetMin = lay.localOffsetMin !== undefined ? lay.localOffsetMin : 60;
+  const cityName  = lay.city    || 'London';
+  const displayCity = cityName === 'Other' ? (lay.customCity || 'Other') : cityName;
+  const tzLabel   = lay.tzLabel || 'BST';
+  const checkinTime = lay.checkinTime || '';
+  const checkinDate = lay.checkinDate || '';
+  const pickupTime  = lay.pickupTime  || '';
+  const pickupDate  = lay.pickupDate  || '';
+  const localNow = new Date(utc + localOffsetMin * 60000);
+  const fmt  = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  const fmtD = d => DAYS[d.getDay()];
+  const parseHHMM = s => { if (!s) return null; const [h,m] = s.split(':').map(Number); return isNaN(h) ? null : h*60+(m||0); };
+  const minToHHMM = m => { const n=((m%1440)+1440)%1440; return `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`; };
+  const checkinMin = parseHHMM(checkinTime);
+  const pickupMin  = parseHHMM(pickupTime);
+  const pdtDiff = localOffsetMin - pdtOffsetMin;
+  const layoverMins = (checkinMin!==null && pickupMin!==null && checkinDate && pickupDate)
+    ? Math.round((new Date(`${pickupDate}T${pickupTime}`) - new Date(`${checkinDate}T${checkinTime}`))/60000)
+    : (checkinMin!==null && pickupMin!==null ? ((pickupMin-checkinMin+1440)%1440) : null);
+  const layoverHrs = layoverMins!==null ? (layoverMins/60).toFixed(1) : '—';
+  const checkinPDT = checkinMin!==null ? minToHHMM(checkinMin-pdtDiff) : '—';
+  const pickupPDT  = pickupMin !==null ? minToHHMM(pickupMin -pdtDiff) : '—';
+  const pdtOf = lm => lm!==null ? minToHHMM(lm-pdtDiff) : '—';
+  // Circadian-correct timing — driven by PDT body clock targets
+  const pdtWorkout = 9*60;     // 09:00 PDT = peak cortisol/testosterone
+  const pdtSleep   = 12*60+30; // 12:30 PDT = adenosine + melatonin window
+  const wkLocal = pdtWorkout + pdtDiff;
+  const slLocal = pdtSleep   + pdtDiff;
+  // ── Timing: work backwards from pickup ───────────────────────────────────
+  // pickupAbs = absolute minutes from midnight of check-in day
+  const pickupAbs = (pickupMin !== null && checkinMin !== null)
+    ? (() => {
+        // If pickup date and checkin date both known, use actual diff
+        if (pickupDate && checkinDate) {
+          const diff = Math.round((new Date(`${pickupDate}T${pickupTime}`) - new Date(`${checkinDate}T${checkinTime}`))/60000);
+          return checkinMin + diff;
+        }
+        // Otherwise assume pickup is next day if pickupMin < checkinMin
+        return pickupMin < checkinMin ? pickupMin + 1440 : pickupMin;
+      })()
+    : null;
+
+  const wakeAbs   = pickupAbs !== null ? pickupAbs - 60 : null;
+  const wkBase    = 9*60 + pdtDiff;      // PDT 09:00 in local minutes
+  const slBase    = 12*60+30 + pdtDiff;  // PDT 12:30 in local minutes
+
+  // Find sleep slot: anchored to PDT 12:30, must be before wake-60 and after checkin+60
+  // Work forward from slBase until it fits after checkin, then check it fits before wake
+  const effSl = (() => {
+    if (checkinMin === null) return slBase;
+    let s = slBase;
+    while (s < checkinMin + 60) s += 1440;
+    // If sleep is after wake (or too close), try the previous cycle
+    if (wakeAbs !== null && s >= wakeAbs - 240) {
+      const sPrev = s - 1440;
+      if (sPrev >= checkinMin + 60 && wakeAbs - sPrev >= 240) return sPrev;
+      // Neither fits — use closest slot before wake allowing 4hrs
+      return wakeAbs !== null ? Math.max(checkinMin + 60, wakeAbs - 300) : s;
+    }
+    return s;
+  })();
+
+  // Find workout slot: PDT 09:00, after checkin+30, at least 90min before sleep
+  const effWk = (() => {
+    if (checkinMin === null) return wkBase;
+    let w = wkBase;
+    while (w < checkinMin + 30) w += 1440;
+    return w;
+  })();
+
+  // Does workout actually fit? Must finish (40min) before shower (sleep-90)
+  const workoutFits = checkinMin !== null
+    ? (effWk + 40 <= effSl - 90) && (wakeAbs === null || effWk < wakeAbs - 120)
+    : true;
+  const scenario = lay.scenario || 'awake'; // 'nap' or 'awake'
+
+  // ── Scenario-specific event timelines ────────────────────────────────────
+  let events;
+  if (scenario === 'nap') {
+    // Scenario A: Nap on arrival → 90-min hard limit → rest of day
+    const napWakeMin  = checkinMin !== null ? checkinMin + 90 : null;
+    // Workout still anchored to PDT 09:00 body clock, but must be after nap wake
+    const effWkNap = napWakeMin !== null && wkLocal < napWakeMin ? napWakeMin + 30 : effWk;
+    const effSlNap = effWkNap > effWk ? effSl + 1440 : effSl;
+    events = [
+      { key:'checkin',      lm: checkinMin,      label:'Hotel check-in — go horizontal immediately', color:'#3b82f6', sub:'Do NOT attempt full sleep · lie flat · eye mask + earplugs · set two alarms · body clock is ~06:00 PDT — any sleep will be N1/N2 only' },
+      { key:'doses',        lm: checkinMin!==null?checkinMin+5:null, label:'On reaching room — protocol doses', color:'#a855f7', sub:'SS-31 · NMN sublingual · BPC-157 · Glycine 3g + L-Theanine 200mg only (not full stack) · eat protein · hydrate' },
+      { key:'nap_wake',     lm: napWakeMin,       label:'NAP ALARM — 90-min hard limit · get up now', color:'#ef4444', sub:'Do not snooze under any circumstances · cold water on face · stand up immediately · inertia clears in 10–15 min · staying down longer risks deep N3 sleep and severe inertia' },
+      { key:'workout',      lm: effWkNap,         label:'Zone 2 outdoors 40–50 min', color:'#10b981', sub:`PDT body clock ${pdtOf(effWkNap)} — cortisol + testosterone window · daylight anchors home clock · NOT intervals` },
+      { key:'shower',       lm: effSlNap-90,      label:'Wind down · Hot shower · Screens off', color:'#ec4899', sub:'90 min before sleep target · hot shower drives core temp rebound · screens off now · no red light needed' },
+      { key:'eve_protocol', lm: effSlNap-60,      label:'Evening protocol — full sleep stack', color:'#14b8a6', sub:'Frog Fuel x2 (40g collagen protein) · Creatine 5g · Mag 400mg · Glycine 3g · L-Theanine 200mg · Apigenin 50mg · Turmeric 750mg' },
+      { key:'sleep',        lm: effSlNap,         label:'Sleep — target until wake alarm', color:'#7c3aed', sub:`PDT body clock ${pdtOf(effSlNap)} — adenosine built all day · post-exercise pressure · home-clock melatonin rising` },
+      { key:'wake_depart',  lm: pickupMin!==null?pickupMin-60:null, label:'Wake — departure prep', color:'#f59e0b', sub:'60 min before pickup · Ostarine + SS-31 + NMN · light breakfast · pack' },
+      { key:'pickup',       lm: pickupMin,        label:`Hotel pickup${pickupDate?' · '+pickupDate:''}`, color:'#ef4444', sub:'' },
+    ];
+  } else {
+    // Scenario B: Stay awake on arrival — push through to evening sleep
+    events = [
+      { key:'checkin',      lm: checkinMin,       label:'Hotel check-in — stay awake', color:'#3b82f6', sub:'Do not lie down · body clock is ~06:00 PDT · horizontal rest risks sleep onset and full N3 crash · get into daylight as soon as possible' },
+      { key:'doses',        lm: checkinMin!==null?checkinMin+5:null, label:'On reaching room — protocol doses', color:'#a855f7', sub:'SS-31 · NMN sublingual · BPC-157 · eat 40–50g protein · hydrate aggressively · caffeine OK until 14:00 local' },
+      { key:'workout', lm: workoutFits ? effWk : null, label: workoutFits ? 'Zone 2 outdoors 40–50 min' : 'No workout window — short layover', color:'#10b981', sub: workoutFits ? `PDT body clock ${pdtOf(effWk)} — peak cortisol + testosterone · daylight builds sleep pressure · critical for tonight` : 'Layover too short for workout before sleep · prioritise rest · light walk only if you feel the need to move' },
+      { key:'shower',       lm: effSl-90,         label:'Wind down · Hot shower · Screens off', color:'#ec4899', sub:'90 min before sleep target · hot shower drives core temp rebound · screens off now' },
+      { key:'eve_protocol', lm: effSl-60,         label:'Evening protocol — full sleep stack', color:'#14b8a6', sub:'Frog Fuel x2 (40g collagen protein) · Creatine 5g · Mag 400mg · Glycine 3g · L-Theanine 200mg · Apigenin 50mg · Turmeric 750mg · maximum adenosine tonight — deepest sleep of the layover' },
+      { key:'sleep',        lm: effSl,            label:'Sleep — target until wake alarm', color:'#7c3aed', sub:`PDT body clock ${pdtOf(effSl)} — adenosine at maximum · post-exercise pressure · home-clock melatonin · this is the highest-quality sleep window of the layover` },
+      { key:'wake_depart',  lm: pickupMin!==null?pickupMin-60:null, label:'Wake — departure prep', color:'#f59e0b', sub:'60 min before pickup · Ostarine + SS-31 + NMN · light breakfast · pack' },
+      { key:'pickup',       lm: pickupMin,        label:`Hotel pickup${pickupDate?' · '+pickupDate:''}`, color:'#ef4444', sub:'' },
+    ];
+  }
+  let html = '';
+  html += `<div class="card" style="margin-bottom:8px">
+    <div class="card-hdr"><div class="card-hdr-left"><div class="card-dot" style="background:var(--blue)"></div><div class="card-title">Layover setup</div></div></div>
+    <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:72px;flex-shrink:0">City</div>
+        <select style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px" onchange="selectCity(this.value)">
+          ${[
+            {v:'London',     label:'London',    offset:60,   tz:'BST'},
+            {v:'Sydney',     label:'Sydney',    offset:600,  tz:'AEST'},
+            {v:'Tokyo',      label:'Tokyo',     offset:540,  tz:'JST'},
+            {v:'Incheon',    label:'Incheon',   offset:540,  tz:'KST'},
+            {v:'Auckland',   label:'Auckland',  offset:720,  tz:'NZST'},
+            {v:'New York',   label:'New York',  offset:-240, tz:'EDT'},
+            {v:'Miami',      label:'Miami',     offset:-240, tz:'EDT'},
+            {v:'Dallas',     label:'Dallas',    offset:-300, tz:'CDT'},
+            {v:'Other',      label:'Other...',  offset:null, tz:''},
+          ].map(c=>`<option value="${c.v}" data-offset="${c.offset}" data-tz="${c.tz}" ${cityName===c.v?'selected':''}>${c.label}</option>`).join('')}
+        </select>
+      </div>
+      ${cityName==='Other' ? `<div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:72px;flex-shrink:0">City</div>
+        <input type="text" id="other-city-input" placeholder="e.g. Bangkok" value="${lay.customCity||''}" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px" onchange="setLayoverCity(this.value)" onblur="setLayoverCity(this.value)">
+        <button onclick="lookupCityTZ(document.getElementById('other-city-input').value)" style="padding:6px 10px;border-radius:6px;border:1px solid var(--blue);background:var(--blue-ll);color:var(--blue);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">Lookup</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:72px;flex-shrink:0">TZ / offset</div>
+        <input type="text" placeholder="e.g. ICT" value="${tzLabel}" style="width:60px;padding:6px 5px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px;text-align:center" onchange="setLayover('tzLabel',this.value)">
+        <select style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px" onchange="setLayover('localOffsetMin',parseInt(this.value))">
+          ${[-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14].map(h=>`<option value="${h*60}" ${localOffsetMin===h*60?'selected':''}>${h>=0?'+':''}${h}:00 UTC</option>`).join('')}
+        </select>
+      </div>
+      <div id="tz-lookup-status" style="font-size:10px;color:var(--text3);padding-left:80px">${lay.tzLookupStatus||''}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:72px;flex-shrink:0">Check-in<div style="font-size:10px;color:var(--text3)">tap date</div></div>
+        <input type="date" value="${checkinDate}" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:${checkinDate?'var(--text)':'var(--text3)'};font-size:13px;min-height:36px;cursor:pointer" onchange="setLayover('checkinDate',this.value)" placeholder="Date">
+        <input type="text" value="${checkinTime}" placeholder="HH:MM" inputmode="numeric" maxlength="5"
+  style="width:90px;padding:8px 6px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px;min-height:36px;font-family:'SF Mono',monospace;cursor:pointer"
+  oninput="fmtTime(this)" onchange="if(validTime(this.value))setLayover('checkinTime',this.value)">
+        <button onclick="captureLocalTime('checkin')" style="padding:6px 10px;border-radius:6px;border:1px solid var(--blue);background:var(--blue-ll);color:var(--blue);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">Now</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:72px;flex-shrink:0">Pickup<div style="font-size:10px;color:var(--text3)">tap date</div></div>
+        <input type="date" value="${pickupDate}" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:${pickupDate?'var(--text)':'var(--text3)'};font-size:13px;min-height:36px;cursor:pointer" onchange="setLayover('pickupDate',this.value)" placeholder="Date">
+        <input type="text" value="${pickupTime}" placeholder="HH:MM" inputmode="numeric" maxlength="5"
+  style="width:90px;padding:8px 6px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px;min-height:36px;font-family:'SF Mono',monospace;cursor:pointer"
+  oninput="fmtTime(this)" onchange="if(validTime(this.value))setLayover('pickupTime',this.value)">
+        <button onclick="pickupPlus24()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--amber);background:var(--amber-l);color:var(--amber);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">+24hr</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:72px;flex-shrink:0">On arrival</div>
+        <div style="display:flex;gap:0;flex:1;border-radius:6px;overflow:hidden;border:1px solid var(--border2)">
+          <button onclick="setLayover('scenario','nap')" style="flex:1;padding:8px 6px;border:none;border-right:1px solid var(--border2);background:${scenario==='nap'?'var(--amber-l)':'var(--surf2)'};color:${scenario==='nap'?'var(--amber)':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;line-height:1.3">
+            Nap 90 min<div style="font-size:9px;font-weight:400;opacity:0.8">then stay awake</div>
+          </button>
+          <button onclick="setLayover('scenario','awake')" style="flex:1;padding:8px 6px;border:none;background:${scenario==='awake'?'var(--blue-ll)':'var(--surf2)'};color:${scenario==='awake'?'var(--blue)':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;line-height:1.3">
+            Stay awake<div style="font-size:9px;font-weight:400;opacity:0.8">push to bedtime</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  html += `<div class="tz-bar" style="margin-bottom:8px">
+    <div class="tz-block"><div class="tz-label">${displayCity} ${tzLabel}</div><div class="tz-time" style="color:var(--blue)">${fmt(localNow)}</div><div class="tz-body">${fmtD(localNow)} · UTC${localOffsetMin>=0?'+':''}${localOffsetMin/60}</div></div>
+    <div class="tz-block" style="margin-left:1px"><div class="tz-label">Home body clock · PDT</div><div class="tz-time" style="color:var(--amber)">${fmt(pdt)}</div><div class="tz-body">${fmtD(pdt)} · UTC−7</div></div>
+  </div>`;
+  if (checkinMin!==null && pickupMin!==null) {
+    html += `<div class="card" style="margin-bottom:8px"><div style="display:flex;padding:10px 14px">
+      <div style="flex:1;text-align:center"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Check-in</div><div style="font-size:15px;font-weight:700;font-family:'SF Mono',monospace;color:var(--blue)">${checkinTime}</div><div style="font-size:10px;color:var(--text3)">${checkinPDT} PDT body clock</div></div>
+      <div style="width:1px;background:var(--border)"></div>
+      <div style="flex:1;text-align:center"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Layover</div><div style="font-size:15px;font-weight:700;font-family:'SF Mono',monospace;color:var(--green)">${layoverHrs} hrs</div><div style="font-size:10px;color:var(--text3)">${checkinDate||'—'} → ${pickupDate||'—'}</div></div>
+      <div style="width:1px;background:var(--border)"></div>
+      <div style="flex:1;text-align:center"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Pickup</div><div style="font-size:15px;font-weight:700;font-family:'SF Mono',monospace;color:var(--amber)">${pickupTime}</div><div style="font-size:10px;color:var(--text3)">${pickupPDT} PDT body clock</div></div>
+    </div></div>`;
+  }
+  html += `<div class="section-label">Timeline · ${displayCity} ${tzLabel} ↔ PDT · ${scenario==='nap'?'Nap on arrival':'Stay awake'}</div><div class="card">`;
+  // Keys that get a Clock button — these map to computed local times
+  const CLOCK_EVENTS = {
+    nap_wake:    { label: 'Nap alarm' },
+    wake_depart: { label: 'Wake' },
+    sleep:       { label: 'Bedtime' },
+    workout:     { label: 'Zone 2' },
+    shower:      { label: 'Wind down' },
+  };
+
+  events.forEach(item => {
+    const localStr = item.lm!==null ? minToHHMM(item.lm) : '—';
+    const pdtStr   = item.lm!==null ? pdtOf(item.lm)+' PDT' : '—';
+    const hasClockBtn = item.lm !== null && CLOCK_EVENTS[item.key];
+    const clockLabel  = hasClockBtn ? CLOCK_EVENTS[item.key].label : '';
+
+    // Convert lm (local minutes) to HH:MM for the Clock URL
+    const localHHMM = item.lm !== null ? minToHHMM(item.lm) : '';
+    const [lHour, lMin] = localHHMM.split(':').map(Number);
+
+    html += `<div class="timeline-item">
+      <div class="tl-line"></div>
+      <div class="tl-time"><div class="tl-local" style="color:${item.lm!==null?'var(--text)':'var(--text3)'}">${localStr}</div><div class="tl-pdt">${pdtStr}</div></div>
+      <div class="tl-dot" style="background:${item.color};opacity:${item.lm!==null?1:0.3}"></div>
+      <div class="tl-body">
+        <div class="tl-title">${item.label}</div>
+        ${item.sub?`<div class="tl-sub">${item.sub}</div>`:''}
+        ${hasClockBtn ? `<div style="margin-top:6px">
+          <button onclick="openClockAlarm(${lHour},${lMin},'${clockLabel}')"
+            style="padding:5px 12px;border-radius:6px;border:1px solid ${item.color};background:transparent;color:${item.color};font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Set ${clockLabel} alarm · ${localHHMM} ${tzLabel}
+          </button>
+        </div>` : ''}
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  const hint = checkinMin!==null
+    ? `Check-in ${checkinTime} local = ${checkinPDT} PDT. Workout window ${minToHHMM(effWk)} local = ${pdtOf(effWk)} PDT (09:00 PDT body clock — peak cortisol/testosterone). Sleep ${minToHHMM(effSl)} local = ${pdtOf(effSl)} PDT (12:30 PDT — adenosine + melatonin window). Wake = pickup − 60 min.`
+    : 'Enter check-in and pickup times above to see your circadian-based timeline.';
+  html += `<div class="section-label">Circadian analysis</div><div class="card"><div class="task" style="border:none"><div class="task-body"><div class="task-sub" style="font-size:12px;color:var(--text2);line-height:1.6">${hint}</div></div></div></div>`;
+  c.innerHTML = html;
+}
+
+function setLayover(key, val) {
+  if (!state.layover) state.layover = {};
+  state.layover[key] = val;
+  saveState();
+  render();
+}
+
+function setLayoverCity(val) {
+  // Save city name without triggering a full re-render (avoids focus loss)
+  if (!state.layover) state.layover = {};
+  state.layover.customCity = val;
+  try { localStorage.setItem('protocol_state', JSON.stringify(state)); } catch(e) {}
+}
+
+function lookupCityTZ(cityName) {
+  if (!cityName || cityName.length < 2) return;
+  const statusEl = document.getElementById('tz-lookup-status');
+  if (statusEl) statusEl.textContent = 'Looking up ' + cityName + '...';
+
+  // Try to find timezone using the worldtimeapi
+  fetch('https://worldtimeapi.org/api/timezone')
+    .then(r => r.json())
+    .then(zones => {
+      // Search for a zone matching the city name
+      const q = cityName.toLowerCase().replace(/\s+/g, '_');
+      const match = zones.find(z => z.toLowerCase().includes('/' + q)) ||
+                    zones.find(z => z.toLowerCase().includes(q));
+      if (!match) {
+        // Fall back to Intl-based offset detection for the city
+        return lookupCityTZFallback(cityName);
+      }
+      return fetch('https://worldtimeapi.org/api/timezone/' + match)
+        .then(r => r.json())
+        .then(data => {
+          const rawOffset = data.utc_offset || '+00:00';
+          const sign = rawOffset[0] === '-' ? -1 : 1;
+          const parts = rawOffset.replace(/[+-]/, '').split(':');
+          const offsetMin = sign * (parseInt(parts[0]) * 60 + parseInt(parts[1] || 0));
+          const abbrev = data.abbreviation || rawOffset;
+          setLayover('localOffsetMin', offsetMin);
+          setLayover('tzLabel', abbrev);
+          setLayover('tzLookupStatus', match + ' · ' + abbrev + ' UTC' + rawOffset);
+          saveState(); render();
+        });
+    })
+    .catch(() => lookupCityTZFallback(cityName));
+}
+
+function lookupCityTZFallback(cityName) {
+  // Use Intl to detect offset — try common IANA zone guesses
+  const guesses = [
+    'Asia/' + cityName.replace(/ /g,'_'),
+    'Europe/' + cityName.replace(/ /g,'_'),
+    'America/' + cityName.replace(/ /g,'_'),
+    'Pacific/' + cityName.replace(/ /g,'_'),
+    'Australia/' + cityName.replace(/ /g,'_'),
+    'Africa/' + cityName.replace(/ /g,'_'),
+  ];
+  for (const tz of guesses) {
+    try {
+      const now = new Date();
+      const fmt = new Intl.DateTimeFormat('en', { timeZone: tz, timeZoneName: 'short', hour: 'numeric', hour12: false });
+      const parts = fmt.formatToParts(now);
+      const tzName = (parts.find(p => p.type === 'timeZoneName') || {}).value || '';
+      const offsetMs = now.getTime() - new Date(now.toLocaleString('en-US', { timeZone: tz })).getTime();
+      const offsetMin = -Math.round(offsetMs / 60000);
+      setLayover('localOffsetMin', offsetMin);
+      setLayover('tzLabel', tzName);
+      setLayover('tzLookupStatus', tz + ' · ' + tzName);
+      saveState(); render(); return;
+    } catch(e) {}
+  }
+  // Nothing found
+  const el = document.getElementById('tz-lookup-status');
+  if (el) el.textContent = 'City not found — set TZ and offset manually';
+}
+
+function selectCity(cityVal) {
+  const presets = {
+    'London':   { offset: 60,   tz: 'BST'  },
+    'Sydney':   { offset: 600,  tz: 'AEST' },
+    'Tokyo':    { offset: 540,  tz: 'JST'  },
+    'Incheon':  { offset: 540,  tz: 'KST'  },
+    'Auckland': { offset: 720,  tz: 'NZST' },
+    'New York': { offset: -240, tz: 'EDT'  },
+    'Dallas':   { offset: -300, tz: 'CDT'  },
+    'Miami':    { offset: -240, tz: 'EDT'  },
+  };
+  if (!state.layover) state.layover = {};
+  state.layover.city = cityVal;
+  if (presets[cityVal]) {
+    state.layover.localOffsetMin = presets[cityVal].offset;
+    state.layover.tzLabel = presets[cityVal].tz;
+  }
+  saveState();
+  render();
+}
+
+function captureLocalTime(prefix) {
+  const lay = state.layover || {};
+  const localOffsetMin = lay.localOffsetMin !== undefined ? lay.localOffsetMin : 60;
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const ln = new Date(utc + localOffsetMin * 60000);
+  const h = String(ln.getHours()).padStart(2,'0');
+  const m = String(ln.getMinutes()).padStart(2,'0');
+  const yyyy = ln.getFullYear();
+  const mm   = String(ln.getMonth()+1).padStart(2,'0');
+  const dd   = String(ln.getDate()).padStart(2,'0');
+  setLayover(prefix+'Time', `${h}:${m}`);
+  setLayover(prefix+'Date', `${yyyy}-${mm}-${dd}`);
+}
+
+function toggleAlert(key) {
+  state.alerts[key] = state.alerts[key] === false ? true : false;
+  saveState();
+  scheduleNotifications();
+  render();
+}
+function setAlertTime(key, val) {
+  state.alerts[key+'_time'] = val;
+  saveState();
+  scheduleNotifications();
+}
+
+function scheduleNotifications() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    // Web notifications require service worker for delayed delivery
+    // Show a confirmation that alerts are set
+    const count = Object.keys(state.alerts).filter(k => !k.endsWith('_time') && state.alerts[k] !== false && state.alerts[k+'_time']).length;
+    if (count > 0) {
+      const b = document.getElementById('notif-banner');
+      if (b) { b.classList.add('show'); b.querySelector('.notif-sub').textContent = `${count} alert${count>1?'s':''} configured · times set in BST`; }
+    }
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission();
+  }
+}
+
+const CITY_LIST = [
+  {v:'LAX', off:-420, tz:'PDT'},
+  {v:'DFW', off:-300, tz:'CDT'},
+  {v:'PHX', off:-420, tz:'MST'},
+  {v:'CLT', off:-240, tz:'EDT'},
+  {v:'JFK', off:-240, tz:'EDT'},
+  {v:'MIA', off:-240, tz:'EDT'},
+  {v:'LHR', off:60, tz:'BST'},
+  {v:'AKL', off:720, tz:'NZST'},
+  {v:'SYD', off:600, tz:'AEST'},
+  {v:'NRT', off:540, tz:'JST'},
+  {v:'HND', off:540, tz:'JST'}
+];
+function renderPreflight(c) {
+  if (!state.flights) state.flights = [state.flight || {}];
+  if (state.flightIdx === undefined) state.flightIdx = 0;
+  const fl = state.flights[state.flightIdx] || {};
+  const flightIdx = state.flightIdx;
+  const totalFlights = state.flights.length;
+
+  c.innerHTML = '';
+
+  const S = 'padding:4px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:12px;font-family:SF Mono,monospace;box-sizing:border-box';
+  const ROW = 'display:flex;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);gap:6px';
+  const LBL = 'font-size:12px;color:var(--text2);flex:1';
+  const SEC = 'font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;padding:8px 0 3px';
+  const SMLLBL = 'font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:2px';
+
+  const sec = t => { const d=document.createElement('div'); d.style.cssText=SEC; d.textContent=t; inner.appendChild(d); };
+
+  const inp = (key, w, mode) => {
+    const el=document.createElement('input'); el.type='text'; el.inputMode=mode||'text';
+    el.value=fl[key]||''; el.style.cssText=S+';width:'+(w||'90px')+';text-align:right';
+    el.addEventListener('change', e=>setFlight(key,e.target.value)); return el;
+  };
+
+  const numInp = (key, w) => {
+    const el=document.createElement('input'); el.type='text'; el.inputMode='decimal';
+    el.value=fl[key]||''; el.placeholder='000.0'; el.style.cssText=S+';width:'+(w||'80px')+';text-align:right';
+    el.addEventListener('change', e=>setFlight(key,e.target.value)); return el;
+  };
+
+  const intInp = (key, w) => {
+    const el=document.createElement('input'); el.type='text'; el.inputMode='numeric'; el.maxLength=3;
+    el.value=fl[key]||''; el.placeholder=''; el.style.cssText=S+';width:'+(w||'60px')+';text-align:right';
+    el.addEventListener('change', e=>setFlight(key,e.target.value)); return el;
+  };
+
+  const sel = (key, opts, w) => {
+    const el=document.createElement('select'); el.style.cssText=S+';width:'+(w||'110px');
+    opts.forEach(o => {
+      const opt=document.createElement('option');
+      opt.value=typeof o==='object'?o.v:o;
+      opt.textContent=typeof o==='object'?o.l:o;
+      if((fl[key]||opts[0].v||opts[0])===opt.value) opt.selected=true;
+      el.appendChild(opt);
+    });
+    el.addEventListener('change', e=>setFlight(key,e.target.value)); return el;
+  };
+
+  const lbl = (t, flex) => { const d=document.createElement('div'); d.style.cssText='font-size:12px;color:var(--text2);'+(flex?'flex:1':''); d.textContent=t; return d; };
+
+  const addRow = (...els) => {
+    const d=document.createElement('div'); d.style.cssText=ROW;
+    els.forEach(e=>d.appendChild(e)); inner.appendChild(d);
+  };
+
+  const col = (labelTxt, el) => {
+    const d=document.createElement('div'); d.style.cssText='display:flex;flex-direction:column;align-items:flex-end';
+    const l=document.createElement('div'); l.style.cssText=SMLLBL; l.textContent=labelTxt;
+    d.appendChild(l); d.appendChild(el); return d;
+  };
+
+  // ── Slot nav ──────────────────────────────────────────────────────────────
+  const depLabel = (fl.flightNum ? fl.flightNum + ' ' : '')
+    + (fl.depCity && fl.depDate ? fl.depCity + ' \u2192 ' + (fl.arrCity||'?') + ' \xb7 ' + fl.depDate : 'Flight ' + (flightIdx+1));
+  const nav = document.createElement('div');
+  nav.style.cssText='display:flex;align-items:center;background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden';
+  nav.innerHTML=(flightIdx===0?'<button disabled style="background:none;border:none;border-right:1px solid var(--border);padding:10px 14px;color:var(--text3);font-size:18px;line-height:1;flex-shrink:0">&#8592;</button>':'<button onclick="shiftFlight(-1)" style="background:none;border:none;border-right:1px solid var(--border);padding:10px 14px;cursor:pointer;color:var(--text);font-size:18px;line-height:1;flex-shrink:0">&#8592;</button>')
+    +'<div style="flex:1;text-align:center;padding:8px 4px"><div style="font-size:13px;font-weight:600;color:var(--text)">'+depLabel+'</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Flight '+(flightIdx+1)+' of '+totalFlights+' \xb7 \u2190 prev \xb7 \u2192 next / new</div></div>'
+    +'<button onclick="deleteFlightSlot()" style="background:none;border:none;border-left:1px solid var(--border);border-right:1px solid var(--border);padding:10px 10px;cursor:pointer;color:var(--text3);font-size:12px;font-weight:600">\u2715</button>'
+    +'<button onclick="shiftFlight(1)" style="background:none;border:none;padding:10px 14px;cursor:pointer;color:var(--text);font-size:18px;line-height:1;flex-shrink:0">&#8594;</button>';
+  c.appendChild(nav);
+
+  const card=document.createElement('div'); card.className='card'; card.style.marginBottom='8px';
+  const inner=document.createElement('div'); inner.style.cssText='padding:8px 14px';
+  card.appendChild(inner); c.appendChild(card);
+
+  // ── Flight info ──────────────────────────────────────────────────────────
+  sec('Flight info');
+  const acOpts=[{v:'777-200ER',l:'777-200ER'},{v:'777-300ER',l:'777-300ER'}];
+  addRow(lbl('Flight No.',true), inp('flightNum','110px'));
+  addRow(lbl('A/C Type',true), sel('acType',acOpts,'130px'));
+  addRow(lbl('Gate',true), inp('gate','110px'));
+
+  // ── Route ────────────────────────────────────────────────────────────────
+  sec('Route');
+  const cityRow=document.createElement('div'); cityRow.style.cssText=ROW;
+  const depSel=document.createElement('select'); depSel.style.cssText=S+';flex:1';
+  const arrSel=document.createElement('select'); arrSel.style.cssText=S+';flex:1';
+  CITY_LIST.forEach(c=>{
+    const od=document.createElement('option'); od.value=c.v; od.textContent=c.v; if(c.v===(fl.depCity||'PHX')) od.selected=true; depSel.appendChild(od);
+    const oa=document.createElement('option'); oa.value=c.v; oa.textContent=c.v; if(c.v===(fl.arrCity||'LHR')) oa.selected=true; arrSel.appendChild(oa);
+  });
+  depSel.addEventListener('change', e=>setFlight('depCity',e.target.value));
+  arrSel.addEventListener('change', e=>setFlight('arrCity',e.target.value));
+  const swapBtn=document.createElement('button'); swapBtn.innerHTML='&#8644;';
+  swapBtn.style.cssText='padding:3px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surf2);color:var(--text2);font-size:13px;cursor:pointer';
+  swapBtn.addEventListener('click',swapFlightCities);
+  [lbl('Dep'),depSel,swapBtn,lbl('Arr'),arrSel].forEach(e=>cityRow.appendChild(e)); inner.appendChild(cityRow);
+
+  const dtr=(label,dateKey,timeKey,fn,btnLbl,bc)=>{
+    const d=document.createElement('div'); d.style.cssText=ROW;
+    const di=document.createElement('input'); di.type='date'; di.value=fl[dateKey]||'';
+    di.style.cssText='flex:1;padding:4px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:11px';
+    di.addEventListener('change',e=>setFlight(dateKey,e.target.value));
+    const ti=document.createElement('input'); ti.type='text'; ti.inputMode='numeric'; ti.maxLength=5; ti.value=fl[timeKey]||''; ti.placeholder='HH:MM';
+    ti.style.cssText=S+';width:58px;text-align:right';
+    ti.addEventListener('input',()=>fmtTime(ti)); ti.addEventListener('change',()=>{if(validTime(ti.value))setFlight(timeKey,ti.value);});
+    const btn=document.createElement('button'); btn.textContent=btnLbl;
+    btn.style.cssText='padding:3px 8px;border-radius:5px;border:1px solid '+bc+';background:var(--blue-ll);color:'+bc+';font-size:11px;font-weight:600;cursor:pointer';
+    btn.addEventListener('click',fn);
+    [lbl(label),di,ti,btn].forEach(e=>d.appendChild(e)); inner.appendChild(d);
+  };
+  dtr('Dep','depDate','depTime',()=>captureFlightTime('dep'),'Now','var(--blue)');
+  dtr('Arr','arrDate','arrTime',()=>captureFlightTime('arr'),'Now','var(--border2)');
+
+  // ── Aircraft ─────────────────────────────────────────────────────────────
+  sec('Aircraft');
+  const rwyInp=document.createElement('input'); rwyInp.type='text'; rwyInp.inputMode='numeric'; rwyInp.maxLength=3;
+  rwyInp.value=fl.rwy||''; rwyInp.placeholder='e.g. 25L';
+  rwyInp.style.cssText=S+';width:70px;text-align:right';
+  rwyInp.addEventListener('change',e=>setFlight('rwy',e.target.value));
+  addRow(lbl('RWY',true), rwyInp);
+
+  // ── Performance ──────────────────────────────────────────────────────────
+  sec('Performance');
+  const p1Opts=['TO','TO-1','TO-2'];
+  const p2Opts=['Dry','Wet'];
+  const p3Opts=['MAX',...Array.from({length:61},(_,i)=>String(i))];
+  const perfRow=document.createElement('div'); perfRow.style.cssText='display:flex;align-items:flex-end;gap:12px;padding:5px 0;border-bottom:1px solid var(--border)';
+  const flapOpts=['5','15','20'];
+  perfRow.appendChild(col('Flaps',sel('flaps',flapOpts,'55px')));
+  perfRow.appendChild(col('Thrust',sel('perf1',p1Opts,'76px')));
+  perfRow.appendChild(col('Dry/Wet',sel('perf2',p2Opts,'60px')));
+  perfRow.appendChild(col('Assumed \xb0C',sel('perf3',p3Opts,'60px')));
+  inner.appendChild(perfRow);
+
+  // ── Fuel (4 digits + decimal) ─────────────────────────────────────────────
+  sec('Fuel');
+  const fuelRow=document.createElement('div'); fuelRow.style.cssText='display:flex;align-items:flex-end;gap:12px;padding:5px 0;border-bottom:1px solid var(--border)';
+  fuelRow.appendChild(col('Block',numInp('fuelBlock','64px')));
+  fuelRow.appendChild(col('Min Takeoff',numInp('fuelTrip','64px')));
+  inner.appendChild(fuelRow);
+
+  // ── Weights ───────────────────────────────────────────────────────────────
+  sec('Weights');
+  const mtow2Opts=[
+    {v:'T',l:'T- Climb/Rwy Limit'},
+    {v:'S',l:'S- Structural Weight'},
+    {v:'L',l:'L- Landing Weight'},
+    {v:'A',l:'A- Climb/Rwy Limit / Dispatch Modified HW/TW'},
+    {v:'D',l:'D- Dispatch Modified RWY Condition/Perf'},
+    {v:'E',l:'E- Dispatch Modified Enroute'},
+    {v:'X',l:'X- Improved Performance'},
+  ];
+  const wRow1=document.createElement('div'); wRow1.style.cssText='display:flex;align-items:flex-end;gap:12px;padding:5px 0;border-bottom:1px solid var(--border)';
+  wRow1.appendChild(col('MTOW 1',numInp('mtow1','64px')));
+  wRow1.appendChild(col('MTOW 2',sel('mtow2',mtow2Opts,'44px')));
+  inner.appendChild(wRow1);
+
+  const wRow2=document.createElement('div'); wRow2.style.cssText='display:flex;align-items:flex-end;gap:12px;padding:5px 0;border-bottom:1px solid var(--border)';
+  ['PTOW','TOW','A/C Wt','ZFW'].forEach((l,i)=>{
+    wRow2.appendChild(col(l,numInp(['ptow','tow','acWeight','zfw'][i],'100%')));
+  });
+  inner.appendChild(wRow2);
+
+  // ── Weather / ATIS ────────────────────────────────────────────────────────
+  sec('Weather / ATIS');
+  const atisOpts='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l=>({v:l,l:l}));
+  addRow(lbl('ATIS',true), sel('atis',atisOpts,'70px'));
+
+  const tempRow=document.createElement('div'); tempRow.style.cssText='display:flex;align-items:flex-end;gap:12px;padding:5px 0;border-bottom:1px solid var(--border)';
+  tempRow.appendChild(col('Planned Temp',intInp('plannedTemp','48px')));
+  tempRow.appendChild(col('Actual Temp',intInp('temp','48px')));
+  inner.appendChild(tempRow);
+
+  // Wind direction pulldown 000-360 in steps of 10
+  const wdOpts=Array.from({length:37},(_,i)=>({v:String(i*10).padStart(3,'0'),l:String(i*10).padStart(3,'0')}));
+  const wdSel=sel('windDir',wdOpts,'68px');
+
+  // Wind speed pulldown 0-60
+  const wsOpts=Array.from({length:61},(_,i)=>({v:String(i),l:String(i)}));
+  const wsSel=sel('windSpd',wsOpts,'55px');
+
+  // Crosswind and headwind/tailwind calculated fields
+  const calcWind = () => {
+    const rwy = parseInt(fl.rwy)||0;
+    const dir = parseInt(fl.windDir)||0;
+    const spd = parseInt(fl.windSpd)||0;
+    const rwyHdg = (rwy * 10) % 360;
+    const angle = (dir - rwyHdg) * Math.PI / 180;
+    const xw = Math.round(Math.abs(spd * Math.sin(angle)));
+    const hw = Math.round(spd * Math.cos(angle));
+    return { xw, hw };
+  };
+
+  const windCalc = calcWind();
+
+  const xwDiv=document.createElement('div'); xwDiv.style.cssText='display:flex;flex-direction:column;align-items:flex-end';
+  const xwLbl=document.createElement('div'); xwLbl.style.cssText='font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:2px'; xwLbl.textContent='X-Wind';
+  const xwVal=document.createElement('div'); xwVal.style.cssText='padding:4px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surf3);color:var(--text);font-size:12px;font-family:SF Mono,monospace;text-align:right;min-width:40px';
+  const xwColor = windCalc.xw > 25 ? 'var(--red)' : windCalc.xw > 10 ? 'var(--amber)' : 'var(--text)';
+  xwVal.style.color = xwColor;
+  xwVal.textContent=String(windCalc.xw).padStart(2,'0');
+  xwDiv.appendChild(xwLbl); xwDiv.appendChild(xwVal);
+
+  const hwSign = windCalc.hw >= 0 ? 'Headwind' : 'Tailwind';
+  const hwDiv=document.createElement('div'); hwDiv.style.cssText='display:flex;flex-direction:column;align-items:flex-end';
+  const hwLbl=document.createElement('div'); hwLbl.style.cssText='font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:2px'; hwLbl.textContent=hwSign;
+  const hwVal=document.createElement('div'); const hwColor = windCalc.hw >= 0 ? 'var(--green)' : (Math.abs(windCalc.hw) > 9 ? 'var(--red)' : 'var(--amber)');
+  hwVal.style.cssText='padding:4px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surf3);color:'+hwColor+';font-size:12px;font-family:SF Mono,monospace;text-align:right;min-width:40px';
+  hwVal.textContent=String(Math.abs(windCalc.hw)).padStart(2,'0');
+  hwDiv.appendChild(hwLbl); hwDiv.appendChild(hwVal);
+
+  // Recalculate on change
+  const recalcWind = () => {
+    fl.windDir = wdSel.value; fl.windSpd = wsSel.value;
+    const r = calcWind();
+    xwVal.textContent = String(r.xw).padStart(2,'0');
+    const sign = r.hw >= 0 ? 'Headwind' : 'Tailwind';
+    hwLbl.textContent = sign;
+    hwVal.style.color = r.hw >= 0 ? 'var(--green)' : (Math.abs(r.hw) > 9 ? 'var(--red)' : 'var(--amber)');
+    hwVal.textContent = String(Math.abs(r.hw)).padStart(2,'0');
+    xwVal.style.color = r.xw > 25 ? 'var(--red)' : r.xw > 10 ? 'var(--amber)' : 'var(--text)';
+  };
+  wdSel.addEventListener('change', e => { setFlight('windDir',e.target.value); recalcWind(); });
+  wsSel.addEventListener('change', e => { setFlight('windSpd',e.target.value); recalcWind(); });
+
+  const windRow=document.createElement('div'); windRow.style.cssText='display:flex;align-items:flex-end;gap:12px;padding:5px 0;border-bottom:1px solid var(--border)';
+  windRow.appendChild(col('Wind Dir',wdSel));
+  windRow.appendChild(col('Wind Spd',wsSel));
+  windRow.appendChild(xwDiv);
+  windRow.appendChild(hwDiv);
+  inner.appendChild(windRow);
+}
+
+
+function renderFlight(c) {
+  const now = new Date();
+  const utcOffset = -7 * 60; // PDT
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const pdt = new Date(utc + utcOffset * 60000);
+  const fmt = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+  // Multi-flight slot management
+  if (!state.flights) state.flights = [state.flight || {}];
+  if (state.flightIdx === undefined) state.flightIdx = 0;
+  if (state.flightIdx >= state.flights.length) state.flightIdx = state.flights.length - 1;
+  const fl = state.flights[state.flightIdx] || {};
+  const flightIdx = state.flightIdx;
+  const totalFlights = state.flights.length;
+  const depCity    = fl.depCity    || 'PHX';
+  const arrCity    = fl.arrCity    || 'LHR';
+  const depDate    = fl.depDate    || '';
+  const depTime    = fl.depTime    || '';
+  const arrDate    = fl.arrDate    || '';
+  const arrTime    = fl.arrTime    || '';
+  const wakeTime   = fl.wakeTime   || '';
+  const wakeDate   = fl.wakeDate   || '';
+  const break2Time  = fl.break2Time  || '';
+  const break2Date  = fl.break2Date  || '';
+  const crewRest   = fl.crewRest   || '';
+  const notes      = fl.notes      || '';
+
+  const depObj = CITY_LIST.find(x=>x.v===depCity) || CITY_LIST[0];
+  const arrObj = CITY_LIST.find(x=>x.v===arrCity) || CITY_LIST[6];
+  const depOff = depObj.off;
+  const arrOff = arrObj.off;
+  const arrTZ  = arrObj.tz;
+  const pdtOff  = -7 * 60;
+
+  const parseHHMM = s => { if (!s) return null; const [h,m]=s.split(':').map(Number); return isNaN(h)?null:h*60+(m||0); };
+  const minToHHMM = m => { const n=((m%1440)+1440)%1440; return `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`; };
+  const toUTC = (localMin, offsetMin) => ((localMin - offsetMin) % 1440 + 1440) % 1440;
+  const fromUTC = (utcMin, offsetMin) => ((utcMin + offsetMin) % 1440 + 1440) % 1440;
+
+  const depMin  = parseHHMM(depTime);
+  const arrMin  = parseHHMM(arrTime);
+  const wakeMin   = parseHHMM(wakeTime);
+  const break2Min = parseHHMM(break2Time);
+
+  const depUTC  = depMin  !== null ? toUTC(depMin,  depOff) : null;
+  const arrUTC  = arrMin  !== null ? toUTC(arrMin,  arrOff) : null;
+  const wakeUTC   = wakeMin   !== null ? wakeMin   : null;
+  const break2UTC = break2Min !== null ? break2Min : null;
+
+  const depPDT  = depUTC  !== null ? fromUTC(depUTC,  pdtOff) : null;
+  const arrPDT  = arrUTC  !== null ? fromUTC(arrUTC,  pdtOff) : null;
+  const wakePDT   = wakeUTC   !== null ? fromUTC(wakeUTC,   pdtOff) : null;
+  const break2PDT = break2UTC !== null ? fromUTC(break2UTC, pdtOff) : null;
+
+  const flightMins = (depDate && arrDate && depMin !== null && arrMin !== null)
+    ? Math.round((new Date(`${arrDate}T${arrTime}`) - new Date(`${depDate}T${depTime}`))/60000) - arrOff + depOff
+    : null;
+  const flightNeg = flightMins !== null && flightMins < 0;
+  const flightHrs = flightMins !== null
+    ? (flightNeg ? `CHECK DATE — negative result (${Math.floor(flightMins/60)}h ${Math.abs(flightMins%60)}m)` : `${Math.floor(flightMins/60)}h ${Math.abs(flightMins%60)}m`)
+    : '—';
+
+  // IDL crossing detection — Pacific routes from US West/East
+  const IDL_PAC = ['AKL','SYD','NRT','HND'];
+  const IDL_US  = ['LAX','PHX','DFW','JFK','CLT','MIA'];
+  const idlNote = (() => {
+    if (!depDate) return null;
+    if (IDL_PAC.includes(arrCity) && IDL_US.includes(depCity)) {
+      const days = (arrCity === 'AKL' || arrCity === 'SYD') ? '+2 days' : '+1 or +2 days';
+      return { dir:'westbound', note:`Crosses IDL — arrival is ${days} local at ${arrCity}. Ensure arrival date reflects local ${arrCity} date.` };
+    }
+    if (IDL_PAC.includes(depCity) && (IDL_US.includes(arrCity) || arrCity === 'LHR')) {
+      return { dir:'eastbound', note:`Crosses IDL eastbound — arrival may be same calendar day or a day earlier local at ${arrCity}. Arrival date should reflect local ${arrCity} date.` };
+    }
+    return null;
+  })();
+
+  const localNow = new Date(utc + depOff * 60000);
+  const arrNow   = new Date(utc + arrOff * 60000);
+
+  const INPUT = (type, val, key, style='') => {
+    if (type === 'time') {
+      return `<input type="text" value="${val}" placeholder="HH:MM"
+        inputmode="numeric" maxlength="5"
+        style="padding:8px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px;min-height:36px;font-family:'SF Mono',monospace;${style}"
+        oninput="fmtTime(this)"
+        onchange="if(validTime(this.value))setFlight('${key}',this.value)">`;
+    }
+    return `<input type="${type}" value="${val}" style="padding:8px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px;min-height:36px;${style}" onchange="setFlight('${key}',this.value)">`;
+  };
+
+  let html = '';
+
+  // ── Flight slot navigation ───────────────────────────────────────────────
+  const depLabel = fl.depCity && fl.depDate ? `${fl.depCity} → ${fl.arrCity || '?'} · ${fl.depDate}` : `Flight ${flightIdx + 1}`;
+  html += `<div style="display:flex;align-items:center;background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden">
+    <button onclick="shiftFlight(-1)" style="background:none;border:none;border-right:1px solid var(--border);padding:10px 14px;cursor:pointer;color:${flightIdx===0?'var(--text3)':'var(--text)'};font-size:18px;line-height:1;flex-shrink:0" ${flightIdx===0?'disabled':''}>&#8592;</button>
+    <div style="flex:1;text-align:center;padding:8px 4px">
+      <div style="font-size:13px;font-weight:600;color:var(--text)">${depLabel}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">Flight ${flightIdx+1} of ${totalFlights} · ← prev · → next / new</div>
+    </div>
+    <button onclick="deleteFlightSlot()" style="background:none;border:none;border-left:1px solid var(--border);border-right:1px solid var(--border);padding:10px 10px;cursor:pointer;color:var(--text3);font-size:12px;font-weight:600;line-height:1;flex-shrink:0" title="Delete this flight">✕</button>
+    <button onclick="shiftFlight(1)" style="background:none;border:none;padding:10px 14px;cursor:pointer;color:var(--text);font-size:18px;line-height:1;flex-shrink:0">&#8594;</button>
+  </div>`;
+
+  // ── Live dual clock ──────────────────────────────────────────────────────
+  html += `<div class="tz-bar" style="margin-bottom:8px">
+    <div class="tz-block">
+      <div class="tz-label">${depCity} local</div>
+      <div class="tz-time" style="color:var(--blue)">${fmt(localNow)}</div>
+      <div class="tz-body">${DAYS[localNow.getDay()]} · ${minToHHMM(toUTC(localNow.getHours()*60+localNow.getMinutes(), depOff))} UTC</div>
+    </div>
+    <div class="tz-block" style="margin-left:1px">
+      <div class="tz-label">${arrCity} ${arrTZ}</div>
+      <div class="tz-time" style="color:var(--amber)">${fmt(arrNow)}</div>
+      <div class="tz-body">${DAYS[arrNow.getDay()]} · ${minToHHMM(toUTC(arrNow.getHours()*60+arrNow.getMinutes(), arrOff))} UTC</div>
+    </div>
+  </div>`;
+
+  // ── Setup card ────────────────────────────────────────────────────────────
+  html += `<div class="card" style="margin-bottom:8px">
+    <div class="card-hdr"><div class="card-hdr-left"><div class="card-dot" style="background:var(--blue)"></div><div class="card-title">Flight details</div></div></div>
+    <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:76px;flex-shrink:0">Departure</div>
+        <select style="flex:1;padding:8px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px;min-height:36px" onchange="setFlight('depCity',this.value)">
+          ${CITY_LIST.map(c=>`<option value="${c.v}" ${depCity===c.v?'selected':''}>${c.v}</option>`).join('')}
+        </select>
+        <button onclick="swapFlightCities()" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text2);font-size:14px;cursor:pointer;flex-shrink:0;line-height:1" title="Swap cities">&#8644;</button>
+        <select style="flex:1;padding:8px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px;min-height:36px" onchange="setFlight('arrCity',this.value)">
+          ${CITY_LIST.map(c=>`<option value="${c.v}" ${arrCity===c.v?'selected':''}>${c.v}</option>`).join('')}
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:76px;flex-shrink:0">Departure<div style="font-size:10px;color:var(--text3)">tap date</div></div>
+        ${INPUT('date', depDate, 'depDate', 'flex:1;')}
+        ${INPUT('time', depTime, 'depTime', 'width:90px;')}
+        <button onclick="captureFlightTime('dep')" style="padding:6px 10px;border-radius:6px;border:1px solid var(--blue);background:var(--blue-ll);color:var(--blue);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">Now</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:76px;flex-shrink:0">Arrival<div style="font-size:10px;color:var(--text3)">tap date</div></div>
+        ${INPUT('date', arrDate, 'arrDate', 'flex:1;')}
+        ${INPUT('time', arrTime, 'arrTime', 'width:90px;')}
+        <button onclick="captureFlightTime('arr')" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">Now</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:76px;flex-shrink:0">Flight time<div style="font-size:10px;color:var(--text3)">calculated</div></div>
+        <div style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid ${flightNeg?'var(--red-l)':idlNote?'var(--amber-l)':'var(--border2)'};background:${flightNeg?'var(--red-l)':idlNote&&!flightMins?'var(--amber-l)':'var(--surf3)'};color:${flightNeg?'var(--red)':flightMins!==null?'var(--text)':'var(--text3)'};font-size:${flightNeg?'11':'13'}px;font-family:'SF Mono',monospace;min-height:36px;display:flex;align-items:center;line-height:1.3">
+          ${flightNeg ? '⚠ '+flightHrs : flightMins!==null ? flightHrs+' · '+Math.round(flightMins/60*10)/10+' hrs' : 'enter dates + times above'}
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:76px;flex-shrink:0">Break alarm 1<div style="font-size:10px;color:var(--text3)">enter in UTC</div></div>
+        ${INPUT('date', wakeDate, 'wakeDate', 'flex:1;')}
+        ${INPUT('time', wakeTime, 'wakeTime', 'width:90px;')}
+        <button onclick="breakAlarmPlus3('wake')" style="padding:6px 10px;border-radius:6px;border:1px solid var(--amber);background:var(--amber-l);color:var(--amber);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">+3hr</button><button onclick="clearBreakAlarm('wake')" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">✕</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:12px;color:var(--text2);width:76px;flex-shrink:0">Break alarm 2<div style="font-size:10px;color:var(--text3)">enter in UTC</div></div>
+        ${INPUT('date', break2Date, 'break2Date', 'flex:1;')}
+        ${INPUT('time', break2Time, 'break2Time', 'width:90px;')}
+        <button onclick="breakAlarmPlus3('break2')" style="padding:6px 10px;border-radius:6px;border:1px solid var(--pink-l, #3d1229);background:var(--pink-l, #3d1229);color:#ec4899;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">+3hr</button><button onclick="clearBreakAlarm('break2')" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">✕</button>
+      </div>
+
+      <div style="display:flex;gap:6px">
+        <div style="flex:1;background:var(--amber-l);border:1px solid var(--amber);border-radius:6px;padding:8px 10px;min-height:52px">
+          <div style="font-size:9px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Break alarm 1 · crew rest remaining</div>
+          <div id="cd-break1" style="font-size:18px;font-weight:700;font-family:'SF Mono',monospace;color:var(--amber)">—</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:2px">${wakeTime ? 'UTC alarm: '+wakeTime : 'set break alarm 1 above'}</div>
+        </div>
+        <div style="flex:1;background:var(--pink-l, #3d1229);border:1px solid #ec4899;border-radius:6px;padding:8px 10px;min-height:52px">
+          <div style="font-size:9px;font-weight:700;color:#ec4899;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Break alarm 2 · crew rest remaining</div>
+          <div id="cd-break2" style="font-size:18px;font-weight:700;font-family:'SF Mono',monospace;color:#ec4899">—</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:2px">${break2Time ? 'UTC alarm: '+break2Time : 'set break alarm 2 above'}</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        ${wakeTime && wakeDate ? `
+          <button onclick="openClockAlarmUTC('${wakeDate}','${wakeTime}','Break 1')"
+            style="flex:1;padding:8px 6px;border-radius:8px;border:1px solid var(--amber);background:transparent;color:var(--amber);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Set Break 1 alarm
+          </button>
+        ` : `<div style="flex:1;padding:8px 6px;border-radius:8px;border:1px dashed var(--border2);text-align:center;font-size:11px;color:var(--text3)">Set break alarm 1</div>`}
+        ${break2Time && break2Date ? `
+          <button onclick="openClockAlarmUTC('${break2Date}','${break2Time}','Break 2')"
+            style="flex:1;padding:8px 6px;border-radius:8px;border:1px solid #ec4899;background:transparent;color:#ec4899;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Set Break 2 alarm
+          </button>
+        ` : `<div style="flex:1;padding:8px 6px;border-radius:8px;border:1px dashed var(--border2);text-align:center;font-size:11px;color:var(--text3)">Set break alarm 2</div>`}
+      </div>
+      <div style="font-size:9px;color:var(--text3);text-align:center;margin-top:4px;line-height:1.5">Opens iOS Clock app pre-filled · tap Save in Clock to confirm</div>
+
+    </div>
+  </div>`;
+
+  // ── IDL notice ───────────────────────────────────────────────────────────
+  if (idlNote) {
+    const idlColor = idlNote.dir === 'westbound' ? '#f59e0b' : '#3b82f6';
+    const idlBg    = idlNote.dir === 'westbound' ? 'var(--amber-l)' : 'var(--blue-ll)';
+    const dayNote  = idlNote.dir === 'westbound'
+      ? (arrCity === 'Auckland' || arrCity === 'Sydney' ? '+2 days' : '+1 or +2 days')
+      : 'same or −1 day';
+    html += `<div style="background:${idlBg};border:1px solid ${idlColor};border-radius:var(--radius);padding:10px 14px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:${idlColor};margin-bottom:4px">
+        IDL CROSSING — ${idlNote.dir.toUpperCase()} · arrival ${dayNote} local
+      </div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.5">${idlNote.note}</div>
+    </div>`;
+  }
+  if (flightNeg && flightMins !== null) {
+    html += `<div style="background:var(--red-l);border:1px solid var(--red);border-radius:var(--radius);padding:10px 14px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:4px">ARRIVAL DATE ERROR — negative flight time</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.5">
+        The calculated flight time is negative. Check the arrival date — it is likely set to the wrong day.
+        ${idlNote ? 'For this Pacific route, try setting arrival date to +1 or +2 days from departure.' : 'Adjust arrival date and recheck.'}
+      </div>
+    </div>`;
+  }
+
+  // ── Time summary ─────────────────────────────────────────────────────────
+  if (depMin !== null || arrMin !== null || wakeMin !== null) {
+    html += `<div class="card" style="margin-bottom:8px">`;
+    const rows = [];
+    if (wakeMin   !== null) rows.push({ label:'Break alarm 1', local:minToHHMM(wakeUTC)+' UTC', utc:'', pdt:minToHHMM(wakePDT)+' PDT body clock', color:'#f59e0b' });
+    if (break2Min !== null) rows.push({ label:'Break alarm 2', local:minToHHMM(break2UTC)+' UTC', utc:'', pdt:minToHHMM(break2PDT)+' PDT body clock', color:'#ec4899' });
+    if (depMin  !== null) rows.push({ label:'Departure', local:`${depTime} ${depCity}`, utc:minToHHMM(depUTC)+' UTC', pdt:minToHHMM(depPDT)+' PDT', color:'#3b82f6' });
+    if (arrMin  !== null) rows.push({ label:'Arrival', local:`${arrTime} ${arrCity} ${arrTZ}`, utc:minToHHMM(arrUTC)+' UTC', pdt:minToHHMM(arrPDT)+' PDT body clock', color:'#10b981' });
+    if (flightMins !== null) rows.push({ label:'Flight time', local:flightHrs, utc:'', pdt:'', color:'#a855f7' });
+    rows.forEach((r,i) => {
+      html += `<div class="task" style="${i<rows.length-1?'border-bottom:1px solid var(--border)':'border:none'}">
+        <div style="width:8px;height:8px;border-radius:2px;background:${r.color};flex-shrink:0"></div>
+        <div class="task-body">
+          <div class="task-label">${r.label}</div>
+          <div class="task-sub">${r.local}${r.utc?' · '+r.utc:''}${r.pdt?' · '+r.pdt:''}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // ── Body clock context (dynamic) ─────────────────────────────────────────
+  if (depMin !== null && arrMin !== null) {
+    html += `<div class="section-label">Body clock context</div>
+    <div class="card"><div class="task" style="border:none"><div class="task-body">
+      <div class="task-sub" style="font-size:12px;color:var(--text2);line-height:1.6">
+        Departing ${depCity} at ${depTime} local = ${minToHHMM(depUTC)} UTC = ${minToHHMM(depPDT)} PDT body clock.<br>
+        Arriving ${arrCity} at ${arrTime} ${arrTZ} = ${minToHHMM(arrUTC)} UTC = ${minToHHMM(arrPDT)} PDT body clock.
+        ${crewRest ? `<br>Crew rest target: ${crewRest} — time sleep window to PDT body clock night (22:00–06:00 PDT).` : ''}
+      </div>
+    </div></div></div>`;
+  }
+
+  // ── In-flight tips ────────────────────────────────────────────────────────
+  const tips = [
+    { cat:'Hydration', color:'#3b82f6', items:[
+      'Cabin humidity is 10–20% — you lose 1–2L of water on a 10+ hr flight without noticing · target 250ml per hour minimum',
+      'Caffeine after 14:00 local at destination delays sleep onset by up to 6 hours — cut off earlier if possible',
+      'Avoid caffeine in the 6 hrs before your intended crew rest window to preserve sleep pressure',
+    ]},
+    { cat:'Crew rest strategy', color:'#7c3aed', items:[
+      'Time crew rest to PDT body clock night (22:00–06:00 PDT) for maximum sleep quality — sleep pressure and melatonin align',
+      'Before entering rest: Magnesium 400mg + Glycine 3g + L-Theanine 200mg + Apigenin 50mg · give 20 min to take effect',
+      '0.5mg melatonin (not 5–10mg) taken 30 min before desired sleep onset — phase-shifting tool, not a sedative',
+      'Eye mask + earplugs non-negotiable · even partial light exposure suppresses melatonin 40–70%',
+      'Aim for at least one full 90-min sleep cycle — exits before N3 re-entry, minimizes inertia on wake',
+    ]},
+    { cat:'Circadian protection', color:'#f59e0b', items:[
+      'Eastbound (PHX→London): body clock shifts hardest · use melatonin and darkness to advance sleep onset · avoid bright light on arrival until after 10:00 local',
+      'Westbound (London→PHX): naturally easier · stay awake on arrival · get afternoon sun at PHX · target normal bedtime PDT',
+      'Meal timing matters — eating signals local time to the gut clock independently of the brain · eat at arrival-city meal times if layover >16 hrs',
+      'Creatine (5–10g) partially buffers the cognitive and neuromuscular performance decrements from sleep deprivation — take with meals on duty days',
+    ]},
+    { cat:'Protocol on duty', color:'#a855f7', items:[
+      'SS-31 1mg + NMN 1g sublingual on waking — both are non-fasted, take whenever possible',
+      'Ostarine 10mg (1ml) with food — do not skip on duty days · consistency through the 8-week cycle matters',
+      'BPC-157 250–500mcg subQ when able · local to elbow/forearm if possible · timing flexible on duty days',
+      'Retatrutide suppresses appetite — eat deliberately to hit protein target · 160–175g even if not hungry',
+      'No NSAIDs — use fish oil + turmeric instead · both are in your Tier 1 stack',
+    ]},
+    { cat:'Altitude & oxidative stress', color:'#10b981', items:[
+      'Cabin altitude equivalent is 6,000–8,000 ft · chronic mild hypoxia elevates oxidative stress — SS-31 mitochondrial protection is directly relevant',
+      'Cosmic radiation exposure at cruise altitude adds to occupational oxidative load over a career · the antioxidant stack (NAC off-days, turmeric, fish oil) partially mitigates this',
+      'Cosmic radiation is highest on polar routes and at higher latitudes — relevant for London and Tokyo routes specifically',
+    ]},
+  ];
+
+  tips.forEach(section => {
+    html += `<div class="section-label">${section.cat}</div><div class="card">`;
+    section.items.forEach((tip, i) => {
+      html += `<div class="task" style="${i<section.items.length-1?'border-bottom:1px solid var(--border)':'border:none'}">
+        <div style="width:6px;height:6px;border-radius:50%;background:${section.color};flex-shrink:0;margin-top:4px;align-self:flex-start"></div>
+        <div class="task-body"><div class="task-sub" style="font-size:12px;line-height:1.55;color:var(--text2)">${tip}</div></div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+
+  c.innerHTML = html;
+}
+
+function setFlight(key, val) {
+  if (!state.flights) state.flights = [{}];
+  if (state.flightIdx === undefined) state.flightIdx = 0;
+  if (!state.flights[state.flightIdx]) state.flights[state.flightIdx] = {};
+  state.flights[state.flightIdx][key] = val;
+  state.flight = state.flights[state.flightIdx]; // keep legacy ref in sync
+  saveState();
+  render();
+}
+
+function swapFlightCities() {
+  if (!state.flights) state.flights = [state.flight || {}];
+  if (state.flightIdx === undefined) state.flightIdx = 0;
+  const fl = state.flights[state.flightIdx] || {};
+  const curDep = fl.depCity || 'PHX';
+  const curArr = fl.arrCity || 'London';
+  setFlight('depCity', curArr);
+  setFlight('arrCity', curDep);
+}
+
+function shiftFlight(dir) {
+  if (!state.flights) state.flights = [state.flight || {}];
+  if (state.flightIdx === undefined) state.flightIdx = 0;
+  const newIdx = state.flightIdx + dir;
+  if (newIdx < 0) return; // no wrap backwards past first
+  if (newIdx >= state.flights.length) {
+    // Add a new blank slot when scrolling forward past last
+    state.flights.push({});
+  }
+  state.flightIdx = newIdx;
+  state.flight = state.flights[state.flightIdx] || {};
+  saveState();
+  render();
+  setTimeout(updateBreakCountdowns, 50);
+}
+
+function deleteFlightSlot() {
+  if (!state.flights || state.flights.length <= 1) {
+    state.flights = [{}];
+    state.flightIdx = 0;
+  } else {
+    state.flights.splice(state.flightIdx, 1);
+    state.flightIdx = Math.min(state.flightIdx, state.flights.length - 1);
+  }
+  state.flight = state.flights[state.flightIdx] || {};
+  saveState();
+  render();
+  setTimeout(updateBreakCountdowns, 50);
+}
+
+function breakAlarmPlus3(prefix) {
+  if (!state.flights) state.flights = [state.flight || {}];
+  if (state.flightIdx === undefined) state.flightIdx = 0;
+  const fl = state.flights[state.flightIdx] || {};
+  const timeKey = prefix === 'wake' ? 'wakeTime'  : 'break2Time';
+  const dateKey = prefix === 'wake' ? 'wakeDate'  : 'break2Date';
+  const curTime = fl[timeKey] || '';
+  const curDate = fl[dateKey] || '';
+  // If a valid alarm is already set, add 3hrs to it; otherwise start from UTC now
+  let baseMs;
+  if (curDate && validTime(curTime)) {
+    baseMs = new Date(`${curDate}T${curTime}:00Z`).getTime();
+  } else {
+    baseMs = Date.now();
+  }
+  const result = new Date(baseMs + 3 * 60 * 60000);
+  const h    = String(result.getUTCHours()).padStart(2,'0');
+  const m    = String(result.getUTCMinutes()).padStart(2,'0');
+  const yyyy = result.getUTCFullYear();
+  const mm   = String(result.getUTCMonth()+1).padStart(2,'0');
+  const dd   = String(result.getUTCDate()).padStart(2,'0');
+  setFlight(timeKey, `${h}:${m}`);
+  setFlight(dateKey, `${yyyy}-${mm}-${dd}`);
+}
+
+function clearBreakAlarm(prefix) {
+  if (!state.flights) state.flights = [state.flight || {}];
+  if (state.flightIdx === undefined) state.flightIdx = 0;
+  const timeKey = prefix === 'wake' ? 'wakeTime'  : 'break2Time';
+  const dateKey = prefix === 'wake' ? 'wakeDate'  : 'break2Date';
+  setFlight(timeKey, '');
+  setFlight(dateKey, '');
+}
+
+// ── Shortcuts alarm integration ───────────────────────────────────────────
+function openShortcutsAlarm() {
+  const fl = state.flights ? (state.flights[state.flightIdx] || {}) : (state.flight || {});
+  const alarms = [];
+  if (fl.wakeDate && validTime(fl.wakeTime))   alarms.push({ label:'Break Alarm 1', date:fl.wakeDate,   time:fl.wakeTime });
+  if (fl.break2Date && validTime(fl.break2Time)) alarms.push({ label:'Break Alarm 2', date:fl.break2Date, time:fl.break2Time });
+  if (!alarms.length) return;
+
+  const lines = ['PROTOCOL BREAK ALARMS', ''];
+  alarms.forEach(a => {
+    const ms    = new Date(a.date + 'T' + a.time + ':00Z').getTime();
+    const local = new Date(ms);
+    const lh    = String(local.getHours()).padStart(2,'0');
+    const lm    = String(local.getMinutes()).padStart(2,'0');
+    lines.push(a.label + ': ' + a.date + ' at ' + a.time + ' UTC');
+    lines.push('Local device time: ' + lh + ':' + lm);
+    lines.push('');
+  });
+  lines.push('Message: WAKE UP — end crew rest now');
+  const text = lines.join('\n');
+
+  const copy = () => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch(e) {}
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(copy);
+  } else { copy(); }
+
+  showShortcutsOverlay(alarms);
+}
+
+function showShortcutsOverlay(alarms) {
+  const existing = document.getElementById('sc-overlay');
+  if (existing) existing.remove();
+
+  const isLight = document.body.classList.contains('light');
+  const bg    = isLight ? '#ffffff' : '#1a1d23';
+  const outer = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.88)';
+  const t1    = isLight ? '#1a1a18' : '#e8eaf0';
+  const t2    = isLight ? '#5f5e5a' : '#8892a4';
+  const bdr   = isLight ? '#e2dfd6' : '#2a3340';
+  const btnbg = isLight ? '#185FA5' : '#185FA5';
+
+  const rows = alarms.map(a => {
+    const ms    = new Date(a.date + 'T' + a.time + ':00Z').getTime();
+    const local = new Date(ms);
+    const lh    = String(local.getHours()).padStart(2,'0');
+    const lm    = String(local.getMinutes()).padStart(2,'0');
+    return '<div style="margin:8px 0;padding:10px;border-radius:8px;border:1px solid ' + bdr + '">'
+      + '<div style="font-size:11px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">' + a.label + '</div>'
+      + '<div style="font-size:15px;font-weight:700;font-family:SF Mono,monospace;color:' + t1 + '">' + a.time + ' UTC</div>'
+      + '<div style="font-size:12px;color:' + t2 + ';margin-top:2px">' + lh + ':' + lm + ' device local time</div>'
+      + '</div>';
+  }).join('');
+
+  const ov = document.createElement('div');
+  ov.id = 'sc-overlay';
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:' + outer + ';display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = '<div style="background:' + bg + ';border-radius:16px;padding:22px;width:100%;max-width:340px;border:1px solid ' + bdr + '">'
+    + '<div style="font-size:17px;font-weight:700;color:' + t1 + ';margin-bottom:3px">Alarm times copied</div>'
+    + '<div style="font-size:12px;color:' + t2 + ';margin-bottom:12px">Alarm details are on your clipboard</div>'
+    + rows
+    + '<div style="border-top:1px solid ' + bdr + ';margin:14px 0"></div>'
+    + '<div style="font-size:12px;color:' + t2 + ';line-height:1.65;margin-bottom:14px">'
+    + '<strong style="color:' + t1 + '">One-time setup:</strong> In Shortcuts, create a shortcut called "Protocol Alarm" with a Receive Input action, then a Set Timer or Create Reminder action using the clipboard text. After setup, this button does it in one tap.<br><br>'
+    + 'Or: open Shortcuts, tap + to add a new automation timed to each alarm time below, and add a notification action saying "WAKE UP — end crew rest".'
+    + '</div>'
+    + '<a href="shortcuts://" style="display:block;padding:12px;border-radius:10px;background:' + btnbg + ';color:#fff;text-align:center;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:8px">Open Shortcuts</a>'
+    + '<button onclick="dismissShortcutsOverlay()" style="width:100%;padding:10px;border-radius:10px;border:1px solid ' + bdr + ';background:transparent;color:' + t2 + ';font-size:13px;cursor:pointer">Dismiss</button>'
+    + '</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e){ if(e.target===ov) dismissShortcutsOverlay(); });
+}
+
+function openClockAlarm(hour, min, label) {
+  const h = String(hour % 24).padStart(2,'0');
+  const m = String(min % 60).padStart(2,'0');
+  showClockToast(h, m, label);
+}
+
+function openClockAlarmUTC(dateStr, timeStr, label) {
+  const alarmMs = new Date(dateStr + 'T' + timeStr + ':00Z').getTime();
+  const local = new Date(alarmMs);
+  openClockAlarm(local.getHours(), local.getMinutes(), label);
+}
+
+function dismissClockToast() { var el=document.getElementById('clock-toast'); if(el) el.remove(); }
+
+function showClockToast(h, m, label) {
+  var existing = document.getElementById('clock-toast');
+  if (existing) existing.remove();
+
+  var isLight = document.body.classList.contains('light');
+  var bg  = isLight ? '#ffffff' : '#1a1d23';
+  var t1  = isLight ? '#1a1a18' : '#e8eaf0';
+  var t2  = isLight ? '#5f5e5a' : '#8892a4';
+  var bdr = isLight ? '#e2dfd6' : '#2a3340';
+
+  var toast = document.createElement('div');
+  toast.id = 'clock-toast';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;'
+    + 'background:' + bg + ';border:1px solid ' + bdr + ';border-radius:14px;padding:20px 24px;'
+    + 'min-width:280px;text-align:center;width:calc(100% - 48px);max-width:320px';
+
+  var lbl = document.createElement('div');
+  lbl.style.cssText = 'font-size:11px;font-weight:700;color:' + t2 + ';text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px';
+  lbl.textContent = label + ' alarm';
+
+  var time = document.createElement('div');
+  time.style.cssText = 'font-size:48px;font-weight:700;font-family:SF Mono,monospace;color:' + t1 + ';margin-bottom:4px;letter-spacing:2px';
+  time.textContent = h + ':' + m;
+
+  var hint = document.createElement('div');
+  hint.style.cssText = 'font-size:11px;color:' + t2 + ';margin-bottom:16px;line-height:1.5';
+  hint.textContent = 'device local time';
+
+  var siriBox = document.createElement('div');
+  siriBox.style.cssText = 'background:' + (isLight?'#F1EFE8':'#181c22') + ';border-radius:10px;padding:10px 14px;margin-bottom:14px;text-align:left';
+
+  var siriLbl = document.createElement('div');
+  siriLbl.style.cssText = 'font-size:9px;font-weight:700;color:' + t2 + ';text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px';
+  siriLbl.textContent = 'Tell Siri';
+
+  var siriPhrase = document.createElement('div');
+  siriPhrase.style.cssText = 'font-size:13px;font-weight:600;color:' + t1 + ';line-height:1.5;font-style:italic';
+  siriPhrase.textContent = '"Hey Siri, set an alarm for ' + h + ':' + m + '"';
+
+  siriBox.appendChild(siriLbl);
+  siriBox.appendChild(siriPhrase);
+
+  var isStandalone = window.navigator.standalone === true;
+
+  var openLink = document.createElement('button');
+  openLink.style.cssText = 'display:block;width:100%;padding:12px;border-radius:10px;border:none;'
+    + 'background:#185FA5;color:#fff;font-size:14px;font-weight:700;cursor:pointer;'
+    + 'margin-bottom:8px;box-sizing:border-box;text-align:center';
+  openLink.textContent = 'Share alarm time';
+  openLink.addEventListener('click', function() {
+    var shareText = label + ' alarm: ' + h + ':' + m + ' (device local time)';
+    if (navigator.share) {
+      navigator.share({
+        title: 'Protocol — ' + label + ' alarm',
+        text: shareText
+      }).catch(function() {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareText).then(function() {
+        openLink.textContent = 'Copied \u2713';
+        setTimeout(function() { openLink.textContent = 'Share alarm time'; }, 2000);
+      });
+    }
+  });
+
+  var dismissBtn = document.createElement('button');
+  dismissBtn.style.cssText = 'width:100%;padding:10px;border-radius:10px;border:1px solid ' + bdr + ';background:transparent;color:' + t2 + ';font-size:13px;cursor:pointer';
+  dismissBtn.textContent = 'Dismiss';
+  dismissBtn.addEventListener('click', dismissClockToast);
+
+  toast.appendChild(lbl);
+  toast.appendChild(time);
+  toast.appendChild(hint);
+  toast.appendChild(siriBox);
+  toast.appendChild(openLink);
+  toast.appendChild(dismissBtn);
+  document.body.appendChild(toast);
+
+  setTimeout(dismissClockToast, 60000);
+}
+
+function dismissShortcutsOverlay() {
+  var el = document.getElementById('sc-overlay');
+  if (el) el.remove();
+}
+
+// ── Break alarm countdowns ──────────────────────────────────────────────────
+let alarmFired = { 'cd-break1': false, 'cd-break2': false };
+
+function updateBreakCountdowns() {
+  if (tab !== 'flight') return;
+  const fl = state.flights ? (state.flights[state.flightIdx] || {}) : (state.flight || {});
+  const utcNowMs = Date.now();
+
+  function countdownFor(dateStr, timeStr, elId) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!dateStr || !timeStr || !validTime(timeStr)) { el.textContent = '—'; alarmFired[elId] = false; return; }
+    const alarmMs = new Date(dateStr + 'T' + timeStr + ':00Z').getTime();
+    if (isNaN(alarmMs)) { el.textContent = '??'; return; }
+    const diffMs = alarmMs - utcNowMs;
+    if (diffMs <= 0) {
+      if (diffMs < -600000) {
+        el.textContent = 'DONE'; el.style.color = 'var(--text3)';
+        if (el.parentElement) el.parentElement.style.opacity = '0.5';
+        alarmFired[elId] = false;
+      } else {
+        el.textContent = 'WAKE'; el.style.color = '#ef4444';
+        if (el.parentElement) el.parentElement.style.opacity = '1';
+      }
+      return;
+    }
+    if (alarmFired[elId] && diffMs > 10000) alarmFired[elId] = false;
+    if (el.parentElement) el.parentElement.style.opacity = '1';
+    const totalSecs = Math.floor(diffMs / 1000);
+    const hrs  = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    el.textContent = String(hrs).padStart(2,'0') + ':' + String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+    if (elId === 'cd-break1') el.style.color = totalSecs < 1800 ? '#ef4444' : 'var(--amber)';
+    if (elId === 'cd-break2') el.style.color = totalSecs < 1800 ? '#ef4444' : '#ec4899';
+  }
+
+  countdownFor(fl.wakeDate,   fl.wakeTime,   'cd-break1');
+  countdownFor(fl.break2Date, fl.break2Time, 'cd-break2');
+}
+
+setInterval(updateBreakCountdowns, 1000);
+
+function captureFlightTime(prefix) {
+  if (!state.flights) state.flights = [state.flight || {}];
+  if (state.flightIdx === undefined) state.flightIdx = 0;
+  const fl = state.flights[state.flightIdx] || {};
+  const depOff = {LAX:-420,DFW:-300,JFK:-240,CLT:-240,PHX:-420,MIA:-240}[fl.depCity||'PHX'] || -420;
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const isBreak = prefix === 'wake' || prefix === 'break2';
+  let h, m, yyyy, mm, dd;
+  if (isBreak) {
+    // Break alarms are UTC — extract UTC values directly from now
+    const nowObj = new Date();
+    h    = String(nowObj.getUTCHours()).padStart(2,'0');
+    m    = String(nowObj.getUTCMinutes()).padStart(2,'0');
+    yyyy = nowObj.getUTCFullYear();
+    mm   = String(nowObj.getUTCMonth()+1).padStart(2,'0');
+    dd   = String(nowObj.getUTCDate()).padStart(2,'0');
+  } else {
+    const offset = prefix === 'arr'
+      ? ((function(){ const c = (CITY_LIST||[{v:'LHR',off:60}]).find(x=>x.v===(fl.arrCity||'LHR')); return c?c.off:60; })())
+      : depOff;
+    const ln = new Date(utcMs + offset * 60000);
+    h    = String(ln.getHours()).padStart(2,'0');
+    m    = String(ln.getMinutes()).padStart(2,'0');
+    yyyy = ln.getFullYear();
+    mm   = String(ln.getMonth()+1).padStart(2,'0');
+    dd   = String(ln.getDate()).padStart(2,'0');
+  }
+  setFlight(prefix+'Time', `${h}:${m}`);
+  setFlight(prefix+'Date', `${yyyy}-${mm}-${dd}`);
+}
+
+function pickupPlus24() {
+  const lay = state.layover || {};
+  const checkinDate = lay.checkinDate || '';
+  const checkinTime = lay.checkinTime || '';
+  if (!checkinDate || !checkinTime) {
+    alert('Enter check-in date and time first');
+    return;
+  }
+  const ci = new Date(`${checkinDate}T${checkinTime}`);
+  const pu = new Date(ci.getTime() + 24 * 60 * 60000);
+  const h  = String(pu.getHours()).padStart(2,'0');
+  const m  = String(pu.getMinutes()).padStart(2,'0');
+  const yyyy = pu.getFullYear();
+  const mm   = String(pu.getMonth()+1).padStart(2,'0');
+  const dd   = String(pu.getDate()).padStart(2,'0');
+  setLayover('pickupTime', `${h}:${m}`);
+  setLayover('pickupDate', `${yyyy}-${mm}-${dd}`);
+}
+
+
+window.addEventListener('online',  () => { document.getElementById('offline-bar').style.display='none'; });
+window.addEventListener('offline', () => { document.getElementById('offline-bar').style.display='block'; });
+if (!navigator.onLine) document.getElementById('offline-bar').style.display='block';
+
+
+function fmtTime(el) {
+  let v = el.value.replace(/[^0-9]/g, '');
+  if (v.length > 4) v = v.slice(0, 4);
+  if (v.length >= 3) v = v.slice(0,2) + ':' + v.slice(2);
+  el.value = v;
+  // Validate range
+  if (v.length === 5) {
+    const [h, m] = v.split(':').map(Number);
+    el.style.borderColor = (h < 24 && m < 60) ? 'var(--border2)' : 'var(--red)';
+  } else {
+    el.style.borderColor = 'var(--border2)';
+  }
+}
+
+function validTime(v) {
+  if (!v || v.length !== 5 || v[2] !== ':') return false;
+  const [h, m] = v.split(':').map(Number);
+  return h >= 0 && h < 24 && m >= 0 && m < 60;
+}
+
+
+loadState();
+updateClock();
+setInterval(updateClock, 30000);
+setInterval(updateBreakCountdowns, 1000);
+render();
+window.addEventListener('online',  () => { document.getElementById('offline-bar').style.display='none'; });
+window.addEventListener('offline', () => { document.getElementById('offline-bar').style.display='block'; });
+if (!navigator.onLine) document.getElementById('offline-bar').style.display='block';
+</script>
+</body>
+</html>
