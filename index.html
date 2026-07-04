@@ -271,6 +271,10 @@ function applyTheme(t) {
 }
 function saveState() { localStorage.setItem('protocol_state', JSON.stringify(state)); }
 
+// -- Protocol (personal health/fitness PWA) sync --
+const PROTOCOL_SYNC_URL = 'https://protocol-sync.coochiesan.workers.dev';
+const PROTOCOL_PIN = '3057';
+
 // Resolve city offset (minutes from UTC) — checks CITY_LIST then state.customCities
 function cityOffset(code, fallback) {
   if (!code) return fallback !== undefined ? fallback : 0;
@@ -2307,7 +2311,18 @@ function renderPreflight(c) {
   viewCDIBtn.style.cssText='flex:1;padding:7px 10px;border-radius:8px;border:1px solid '+(hasCDI?'var(--blue)':'var(--border2)')+';background:'+(hasCDI?'var(--blue-ll)':'var(--surf2)')+';color:'+(hasCDI?'var(--blue)':'var(--text3)')+';font-size:12px;font-weight:700;cursor:pointer;text-align:center';
   viewCDIBtn.addEventListener('click',()=>{ if(fl.cdiRaw) showCDIViewer(); });
   loadBar.appendChild(viewCDIBtn);
+  const pushBtn=document.createElement('button');
+  pushBtn.textContent='-> Protocol';
+  pushBtn.style.cssText='flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--purple);background:var(--purple-l);color:var(--purple);font-size:12px;font-weight:700;cursor:pointer;text-align:center';
+  pushBtn.addEventListener('click',()=>pushFlightToProtocol());
+  loadBar.appendChild(pushBtn);
   c.appendChild(loadBar);
+
+  const pushStatus=document.createElement('div');
+  pushStatus.id='protocol-push-status';
+  pushStatus.style.cssText='font-size:11px;color:var(--text3);text-align:right;margin:-2px 2px 6px 2px';
+  pushStatus.textContent=protocolPushLabel(fl);
+  c.appendChild(pushStatus);
 
   const card=document.createElement('div'); card.className='card'; card.style.marginBottom='5px';
   const inner=document.createElement('div'); inner.style.cssText='padding:6px 10px';
@@ -4190,6 +4205,71 @@ function setFlight(key, val) {
   saveState();
   if (key === 'arrCity') setTimeout(preloadRefGuide, 200);
   render();
+}
+
+// -- Push current flight to Protocol --
+function protocolPushLabel(fl) {
+  if (!fl.protocolPushedAt) return 'Not pushed yet';
+  const mins = Math.round((Date.now() - new Date(fl.protocolPushedAt).getTime()) / 60000);
+  if (mins < 1) return 'Pushed just now';
+  if (mins < 60) return 'Pushed ' + mins + 'm ago';
+  const hrs = Math.round(mins / 60);
+  return 'Pushed ' + hrs + 'h ago';
+}
+
+function setPushStatus(msg, kind) {
+  const el = document.getElementById('protocol-push-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = kind === 'error' ? 'var(--red)' : kind === 'pending' ? 'var(--text3)' : 'var(--purple)';
+}
+
+function pushFlightToProtocol() {
+  const fl = currentFlight();
+  if (!fl.depDate) { setPushStatus('Set a departure date first', 'error'); return; }
+
+  const tripId = (fl.flightNum || ((fl.depCity||'XXX') + (fl.arrCity||'XXX'))) + '_' + fl.depDate;
+  const theatre = (typeof detectTheatre === 'function') ? detectTheatre(fl.depCity || '', fl.arrCity || '') : null;
+
+  let direction = null;
+  if (fl.depCity && fl.arrCity && typeof cityOffset === 'function') {
+    const dOff = cityOffset(fl.depCity), aOff = cityOffset(fl.arrCity);
+    if (typeof dOff === 'number' && typeof aOff === 'number' && dOff !== aOff) {
+      direction = (aOff > dOff) ? 'eastbound' : 'westbound';
+    }
+  }
+
+  const myBreaks = ['wake','break2','break3','break4']
+    .map(k => ({ label: k, date: fl[BREAK_DATE_KEY[k]] || null, time: fl[BREAK_TIME_KEY[k]] || null }))
+    .filter(b => b.date || b.time);
+
+  const record = {
+    trip_id: tripId,
+    dep_date: fl.depDate,
+    arr_date: fl.arrDate || null,
+    flight_num: fl.flightNum || null,
+    dep_airport: fl.depCity || null,
+    arr_airport: fl.arrCity || null,
+    cities: (fl.depCity||'?') + '-' + (fl.arrCity||'?'),
+    dep_time_local: fl.depTime || null,
+    arr_time_local: fl.arrTime || null,
+    theatre: theatre,
+    direction: direction,
+    my_breaks: myBreaks,
+  };
+
+  setPushStatus('Pushing...', 'pending');
+  fetch(PROTOCOL_SYNC_URL + '/flight', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-PIN': PROTOCOL_PIN },
+    body: JSON.stringify({ record: record }),
+  })
+    .then(r => r.json().then(d => ({ ok: r.ok, d: d })))
+    .then(res => {
+      if (!res.ok) { setPushStatus((res.d.error || 'Push failed'), 'error'); return; }
+      setFlight('protocolPushedAt', new Date().toISOString());
+    })
+    .catch(() => setPushStatus('Network error', 'error'));
 }
 
 function adjustArrTime(deltaMins) {
