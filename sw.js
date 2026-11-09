@@ -4,13 +4,19 @@
 // networks that are "online" but can't actually reach github.io (e.g. flight deck wifi).
 
 // ── BUMP THIS WITH EVERY DEPLOY to force cache refresh on all clients ──────
-const CACHE_NAME = 'flight-assets-v2026-11-05.95';
+// One sw.js for both repos (.101): app shell = the folder this file is served
+// from (…/Flight/ or …/FlightBeta/); each repo keeps its own cache prefix so
+// the two never delete each other's caches on the same device.
+const SCOPE = new URL('./', self.location.href).href;
+const CACHE_PREFIX = /\/FlightBeta\//.test(SCOPE) ? 'flightbeta-assets-' : 'flight-assets-';
+const SHELL_INDEX = SCOPE + 'index.html';
+const CACHE_NAME = CACHE_PREFIX + 'v2026-11-09.101';
 const NETWORK_TIMEOUT_MS = 4000;
 
 // App shell — required for the app to load offline / on restricted networks
 const SHELL_ASSETS = [
-  'https://coochiesan.github.io/Flight/',
-  'https://coochiesan.github.io/Flight/index.html',
+  SCOPE,
+  SHELL_INDEX,
 ];
 
 const IMAGE_ASSETS = [
@@ -76,7 +82,7 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => {
+        keys.filter(k => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME).map(k => {
           console.log('[SW] Deleting old cache:', k);
           return caches.delete(k);
         })
@@ -92,10 +98,10 @@ self.addEventListener('message', event => {
     event.waitUntil((async () => {
       try {
         const cache = await caches.open(CACHE_NAME);
-        const fresh = await fetch('https://coochiesan.github.io/Flight/index.html', { cache: 'reload' });
+        const fresh = await fetch(SHELL_INDEX, { cache: 'reload' });
         if (fresh && fresh.ok) {
-          await cache.put('https://coochiesan.github.io/Flight/index.html', fresh.clone());
-          await cache.put('https://coochiesan.github.io/Flight/', fresh.clone());
+          await cache.put(SHELL_INDEX, fresh.clone());
+          await cache.put(SCOPE, fresh.clone());
         }
       } catch (e) { /* ignore — reload anyway */ }
       const clients = await self.clients.matchAll({ type: 'window' });
@@ -119,7 +125,7 @@ self.addEventListener('fetch', event => {
   if (isNavigation || isShellAsset) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async cache => {
-        const cached = await cache.match(isNavigation ? 'https://coochiesan.github.io/Flight/index.html' : req);
+        const cached = await cache.match(isNavigation ? SHELL_INDEX : req);
 
         // Always try to refresh from network in the background (best effort, fast timeout)
         const networkUpdate = fetchWithTimeout(req, NETWORK_TIMEOUT_MS)
@@ -127,7 +133,7 @@ self.addEventListener('fetch', event => {
             if (response && response.ok) {
               const oldTag = cached ? (cached.headers.get('etag') || cached.headers.get('last-modified') || '') : '';
               const newTag = response.headers.get('etag') || response.headers.get('last-modified') || '';
-              cache.put('https://coochiesan.github.io/Flight/index.html', response.clone());
+              cache.put(SHELL_INDEX, response.clone());
               if (isShellAsset) cache.put(req, response.clone());
               if (cached && newTag && oldTag !== newTag) {
                 const clients = await self.clients.matchAll({ type: 'window' });

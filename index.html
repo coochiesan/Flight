@@ -8,6 +8,14 @@
 <meta name="apple-mobile-web-app-title" content="Flight">
 <meta name="theme-color" content="#0a0c0f">
 <title>Flight Plan</title>
+<script>
+// One index.html for both repos (.97): /FlightBeta/ = friends' build.
+if (location.pathname.indexOf('/FlightBeta') === 0) {
+  document.title = 'Flight Plan (Beta)';
+  var _amt = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (_amt) _amt.setAttribute('content', 'Flight Beta');
+}
+</script>
 <style>
 
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -260,6 +268,11 @@ function showUpdateBanner() {
 </div>
 
 <script>
+// ── Build flavour (.97) ── same file deployed to /Flight/ and /FlightBeta/.
+// Beta: separate storage key (same origin as main) and no Protocol push.
+const IS_BETA = location.pathname.indexOf('/FlightBeta') === 0;
+const STORAGE_KEY = IS_BETA ? 'flightbeta_state' : 'protocol_state';
+const PROTOCOL_ENABLED = !IS_BETA;
 // ── Constants ──────────────────────────────────────────────────────────────
 const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -281,11 +294,26 @@ let tab = 'flight';
 let state = {};
 
 function loadState() {
-  try { state = JSON.parse(localStorage.getItem('protocol_state') || '{}'); } catch(e) { state = {}; }
+  var _rawState = null;
+  try { _rawState = localStorage.getItem(STORAGE_KEY); state = JSON.parse(_rawState || '{}'); } catch(e) { state = {}; }
   if (!state.checks) state.checks = {};
   if (!state.weights) state.weights = {};
   if (!state.alerts) state.alerts = {};
   if (!state.layover) state.layover = { tz: 'Europe/London', tzName: 'London BST' };
+  // Home base / body-clock zone (build .96). Existing installs keep Pacific;
+  // a fresh install takes the device's zone if it's one of the selectable ones.
+  if (!state.layover.bodyClockZone) {
+    var _hz = 'America/Los_Angeles';
+    if (!_rawState) {
+      try {
+        var _dz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (['America/Los_Angeles','America/Phoenix','America/Denver','America/Chicago','America/New_York','UTC',
+             'Europe/London','Europe/Paris','Europe/Moscow','Asia/Kolkata','Asia/Shanghai','Asia/Tokyo',
+             'Australia/Sydney','Pacific/Auckland'].indexOf(_dz) >= 0) _hz = _dz;
+      } catch(e) {}
+    }
+    state.layover.bodyClockZone = _hz;
+  }
   if (!state.flight) state.flight = {};
   if (!state.depNotesByCity) state.depNotesByCity = {};
   if (!state.arrNotesByCity) state.arrNotesByCity = {};
@@ -356,7 +384,7 @@ function applyTheme(t) {
     if (btn) btn.textContent = 'Light';
   }
 }
-function saveState() { localStorage.setItem('protocol_state', JSON.stringify(state)); }
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
 // Return/Enter ends editing in any single-line box (and the ATIS paste
 // boxes): blur → the field's normal 'change' handler commits the value and
@@ -431,7 +459,23 @@ function transAltFor(icao) {
   return hit ? hit[1] : '';
 }
 function setFlightQuiet(key, val) {
-  const f = currentFlight(); f[key] = val; state.flight = f; saveState();
+  // Same slot path as setFlight (never a detached {}), no re-render (.97)
+  if (!state.flights) state.flights = [{}];
+  if (state.flightIdx === undefined) state.flightIdx = 0;
+  if (!state.flights[state.flightIdx]) state.flights[state.flightIdx] = {};
+  state.flights[state.flightIdx][key] = val;
+  state.flight = state.flights[state.flightIdx];
+  saveState();
+}
+// iOS Safari doesn't blur a focused input when a non-focusable element
+// (the Preflight/Flight/Arrival tabs) is tapped, so `change` never fired and
+// the typed value was lost on re-render. Commit it before switching. (.97)
+function commitActiveInput() {
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) {
+    try { a.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+    try { a.blur(); } catch (e) {}
+  }
 }
 // Live mask: digits only, decimal auto-inserted after 3 → "123.456".
 function fmtFreqInput(el) {
@@ -478,8 +522,8 @@ function freqBlockHtml(page, title, fields, inline) {
   const body = collapsed ? '' : '<div style="display:flex;gap:10px;padding:10px 14px ' + (inline ? '0' : '12px') + '">' + fields.map(f => {
     const val = esc(fl[f.key]);
     const inp = f.type === 'sid'
-      ? '<input type="text" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="16" placeholder="SID" value="' + val + '" style="' + iS + ';text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" onchange="setFlightQuiet(\'' + f.key + '\', this.value.trim().toUpperCase())">'
-      : '<input type="text" inputmode="decimal" maxlength="7" placeholder="000.000" value="' + val + '" style="' + iS + '" oninput="fmtFreqInput(this)" onchange="commitFreq(this, \'' + f.key + '\')">';
+      ? '<input type="text" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="16" placeholder="' + (f.ph || 'SID') + '" value="' + val + '" style="' + iS + ';text-transform:uppercase" oninput="this.value=this.value.toUpperCase();setFlightQuiet(\'' + f.key + '\', this.value.trim())" onchange="setFlightQuiet(\'' + f.key + '\', this.value.trim().toUpperCase())">'
+      : '<input type="text" inputmode="decimal" maxlength="7" placeholder="000.000" value="' + val + '" style="' + iS + '" oninput="fmtFreqInput(this);setFlightQuiet(\'' + f.key + '\', this.value)" onchange="commitFreq(this, \'' + f.key + '\')">';
     let chips = '';
     if (f.opts && fl[f.opts]) {
       let o = []; try { o = JSON.parse(fl[f.opts]); } catch (e) {}
@@ -492,7 +536,7 @@ function freqBlockHtml(page, title, fields, inline) {
 }
 
 // -- Protocol sync --
-const APP_BUILD = '2026-11-05.95';
+const APP_BUILD = '2026-11-09.101' + (IS_BETA ? '-beta' : '');
 const PROTOCOL_SYNC_URL = 'https://protocol-sync.coochiesan.workers.dev';
 // Private CORS proxy (Cloudflare Worker, build .90). corsproxy.io began
 // answering HTTP 401 to unauthenticated requests (17 Oct 2026), which took
@@ -500,7 +544,6 @@ const PROTOCOL_SYNC_URL = 'https://protocol-sync.coochiesan.workers.dev';
 // worker: flight-proxy-worker.js — locked to this app's origin and to
 // atis.info / api.atis.guru / aviationweather.gov / timeapi.io only.
 const FLIGHT_PROXY = 'https://flight-proxy.coochiesan.workers.dev/';
-const PROTOCOL_PIN = '3057';
 
 // Resolve city offset (minutes from UTC) — checks CITY_LIST then state.customCities
 // ── Live time zones (build .95) ────────────────────────────────────────────
@@ -565,6 +608,11 @@ function refreshTimeZones() {
   } catch (e) {}
 }
 
+// Home base zone — one setting (Layover setup → Home base) drives the body
+// clock and every "unknown departure city" fallback (was hardcoded −420). (.96)
+function homeZone() { return (state && state.layover && state.layover.bodyClockZone) || 'America/Los_Angeles'; }
+function homeOffMin() { const o = ianaOffsetMin(homeZone()); return (o === null || o === undefined) ? -420 : o; }
+
 function cityOffset(code, fallback) {
   if (!code) return fallback !== undefined ? fallback : 0;
   const inList = (typeof CITY_LIST !== 'undefined') ? CITY_LIST.find(x => x.v === code) : null;
@@ -582,6 +630,7 @@ function cityTZ(code) {
 }
 
 function setMode(m) {
+  commitActiveInput();
   mode = m;
   const mr = document.querySelector('.mode-row');
   if (mr) mr.style.display = 'flex';
@@ -589,6 +638,7 @@ function setMode(m) {
 }
 
 function setTab(t) {
+  commitActiveInput();
   tab = t;
   const modeRow = document.querySelector('.mode-row');
   if (modeRow) modeRow.style.display = t === 'layover' ? 'none' : 'flex';
@@ -1183,7 +1233,7 @@ function renderLayover(c) {
     <div class="card-hdr"><div class="card-hdr-left"><div class="card-dot" style="background:var(--blue)"></div><div class="card-title">Layover setup</div></div></div>
     <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
       <div style="display:flex;align-items:center;gap:8px">
-        <div style="font-size:12px;color:var(--text2);width:72px;flex-shrink:0">Body Clock</div>
+        <div style="font-size:12px;color:var(--text2);width:72px;flex-shrink:0">Home base</div>
         <select style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px" onchange="setLayover('bodyClockZone',this.value)">
           ${bodyClockZones.map(z=>{const off=tzOffset(z.id);const abbr=tzAbbr(z.id);const sign=off>=0?'+':'-';const h=Math.floor(Math.abs(off)/60);const m=Math.abs(off)%60;const utcStr='UTC'+sign+h+(m?':'+String(m).padStart(2,'0'):'');return`<option value="${z.id}" ${savedBodyClockZone===z.id?'selected':''}>${z.l} · ${abbr} (${utcStr})</option>`;}).join('')}
         </select>
@@ -1562,7 +1612,7 @@ function setLayoverCity(val) {
   // Save city name without triggering a full re-render (avoids focus loss)
   if (!state.layover) state.layover = {};
   state.layover.customCity = val;
-  try { localStorage.setItem('protocol_state', JSON.stringify(state)); } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
 }
 
 function lookupCityTZ(cityName) {
@@ -2553,8 +2603,9 @@ function detectTheatre(depCity, arrCity) {
   const EUROPEAN = ['LHR','CDG','FCO','DUB','MAD','AMS','FRA','BCN','ZRH','BRU','MAN','OSL','ARN','LGW'];
   const NPAC     = ['NRT','HND','ICN'];
   const SPAC     = ['SYD','AKL'];
-  // Determine which end is not LAX to find the route endpoint
-  const endpoint = (arrCity === 'LAX' || !arrCity) ? depCity : arrCity;
+  // Route endpoint = whichever end is an oceanic gateway (any home base) (.96)
+  const ALL_GW   = EUROPEAN.concat(NPAC, SPAC);
+  const endpoint = (arrCity && ALL_GW.indexOf(arrCity) >= 0) ? arrCity : depCity;
   if (!endpoint) return null;
   if (EUROPEAN.includes(endpoint)) return 'NATL';
   if (NPAC.includes(endpoint))     return 'NPAC';
@@ -2847,22 +2898,27 @@ function renderPreflight(c) {
   };
 
   // â”€â”€ PTOW warning popup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Parking-brake trap (.100): keyed ONLY to Disp Wt — the aircraft-computed
+  // weight entered from the box. Pops when an over-limit weight is entered or
+  // the page draws with one; "Acknowledge" silences it for that exact value
+  // (a different over-limit value pops again). Banner + red field persist
+  // until the weight is back under max taxi.
   const checkPTOW = () => {
-    const acType = fl.acType || '777-200ER';
-    const ptow = parseFloat(fl.ptow) || 0;
-    const limit = acType === '777-300ER' ? 777.0 : 650.0;
-    const msg   = acType === '777-300ER'
-      ? 'Maximum Taxi Weight is 777K — Do Not Release Parking Brake'
-      : 'Maximum Taxi Weight is 650K — Do Not Release Parking Brake';
+    const L = acLimits(currentFlight());
+    const cf = currentFlight();
+    const wt = parseFloat(cf.acWeight);
+    const limit = L.taxi;
+    const msg = 'Aircraft weight ' + (isNaN(wt) ? '' : wt.toFixed(1)) + ' exceeds max taxi weight ' + limit.toFixed(1) + ' (' + L.tag + ') \u2014 DO NOT RELEASE PARKING BRAKE';
     const existing = document.getElementById('ptow-popup');
     if (existing) existing.remove();
-    if (ptow > limit) {
+    if (!isNaN(wt) && wt > limit && String(cf.pbAckWt || '') !== String(cf.acWeight)) {
       const pop = document.createElement('div');
       pop.id = 'ptow-popup';
       pop.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--red-l);border:2px solid var(--red);border-radius:12px;padding:16px 20px;max-width:300px;width:calc(100% - 40px);text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.4)';
-      const msg_div = document.createElement('div'); msg_div.style.cssText='font-size:12px;font-weight:700;color:var(--red);margin-bottom:12px;line-height:1.4'; msg_div.textContent=msg;
-      const btn = document.createElement('button'); btn.textContent='Dismiss'; btn.style.cssText='padding:8px 20px;border-radius:8px;border:1px solid var(--red);background:transparent;color:var(--red);font-size:13px;font-weight:600;cursor:pointer';
-      btn.addEventListener('click', ()=>pop.remove());
+      pop.style.maxWidth = '420px';
+      const msg_div = document.createElement('div'); msg_div.style.cssText='font-size:20px;font-weight:800;color:var(--red);margin-bottom:14px;line-height:1.35'; msg_div.textContent=msg;
+      const btn = document.createElement('button'); btn.textContent='Acknowledge'; btn.style.cssText='padding:10px 24px;border-radius:8px;border:2px solid var(--red);background:transparent;color:var(--red);font-size:15px;font-weight:700;cursor:pointer';
+      btn.addEventListener('click', ()=>{ setFlightQuiet('pbAckWt', String(currentFlight().acWeight || '')); pop.remove(); });
       pop.appendChild(msg_div); pop.appendChild(btn);
       document.body.appendChild(pop);
     }
@@ -2999,6 +3055,7 @@ function renderPreflight(c) {
   viewCDIBtn.style.cssText='flex:1;padding:7px 10px;border-radius:8px;border:1px solid '+(hasCDI?'var(--blue)':'var(--border2)')+';background:'+(hasCDI?'var(--blue-ll)':'var(--surf2)')+';color:'+(hasCDI?'var(--blue)':'var(--text3)')+';font-size:12px;font-weight:700;cursor:pointer;text-align:center';
   viewCDIBtn.addEventListener('click',()=>{ if(fl.cdiRaw) showCDIViewer(); });
   loadBar.appendChild(viewCDIBtn);
+  if (PROTOCOL_ENABLED) {
   const pushBtn=document.createElement('button');
   pushBtn.textContent='\u2192 Protocol';
   pushBtn.style.cssText='flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--purple);background:var(--purple-l);color:var(--purple);font-size:12px;font-weight:700;cursor:pointer;text-align:center';
@@ -3011,6 +3068,42 @@ function renderPreflight(c) {
   pushStatus.style.cssText='font-size:11px;color:var(--text3);text-align:right;margin:-2px 2px 6px 2px';
   pushStatus.textContent=protocolPushLabel(fl);
   c.appendChild(pushStatus);
+  } else { c.appendChild(loadBar); }
+
+  // Weight warnings (.99/.100) — PTOW/ATOW within 2,000 lb of (or over)
+  // structural MTOW; Disp Wt (aircraft weight) over max taxi → parking brake.
+  {
+    const L = acLimits(fl);
+    const msgs = [];
+    const chk = [['PTOW', fl.ptow], ['ATOW', fl.atow]];
+    chk.forEach(([lbl, raw]) => {
+      const v = parseFloat(raw); if (isNaN(v)) return;
+      if (v > L.mtow) msgs.push({ red: true, t: lbl + ' ' + v.toFixed(1) + ' is OVER max takeoff weight ' + L.mtow.toFixed(1) + ' (' + L.tag + ')' });
+      else if (v >= L.mtow - 2.0) msgs.push({ red: false, t: lbl + ' ' + v.toFixed(1) + ' is within 2,000 lb of max takeoff weight ' + L.mtow.toFixed(1) + ' (' + L.tag + ')' });
+    });
+    const acw = parseFloat(fl.acWeight);
+    // Early warning (.101): before closeout, planned RAMP WT from the plan vs
+    // max taxi. Amber within 2,000 lb, red over. Once Disp Wt (aircraft
+    // weight) is entered it governs and this line drops out.
+    const rw = parseFloat(fl.rampWt);
+    if (isNaN(acw) && !isNaN(rw)) {
+      if (rw > L.taxi) msgs.unshift({ red: true, t: 'Planned ramp weight ' + rw.toFixed(1) + ' is OVER max taxi weight ' + L.taxi.toFixed(1) + ' (' + L.tag + ') \u2014 verify closeout before releasing the parking brake' });
+      else if (rw >= L.taxi - 2.0) msgs.unshift({ red: false, t: 'Planned ramp weight ' + rw.toFixed(1) + ' is within 2,000 lb of max taxi weight ' + L.taxi.toFixed(1) + ' (' + L.tag + ') \u2014 verify closeout before releasing the parking brake' });
+    }
+    if (!isNaN(acw) && acw > L.taxi) msgs.unshift({ red: true, t: 'DO NOT RELEASE PARKING BRAKE \u2014 aircraft weight ' + acw.toFixed(1) + ' over max taxi weight ' + L.taxi.toFixed(1) + ' (' + L.tag + ')' });
+    if (msgs.length) {
+      const anyRed = msgs.some(m => m.red);
+      const wb = document.createElement('div');
+      wb.style.cssText = 'margin:0 0 8px 0;padding:8px 12px;border-radius:8px;border:2px solid ' + (anyRed ? 'var(--red)' : 'var(--amber)') + ';background:' + (anyRed ? 'var(--red-l)' : 'var(--amber-l)') + ';display:flex;flex-direction:column;gap:3px';
+      msgs.forEach(m => {
+        const d = document.createElement('div');
+        d.style.cssText = 'font-size:14px;font-weight:800;color:' + (m.red ? 'var(--red)' : 'var(--amber)');
+        d.textContent = m.t;
+        wb.appendChild(d);
+      });
+      c.appendChild(wb);
+    }
+  }
 
   // Station frequencies — departure field report (build .87)
   {
@@ -3142,13 +3235,13 @@ function renderPreflight(c) {
   noseWrap.appendChild(noseLbl); noseWrap.appendChild(noseRow); fiCol.appendChild(noseWrap);
 
   // Enroute Time
-  const etWrap=document.createElement('div'); etWrap.style.cssText='display:flex;flex-direction:column;gap:2px';
+  const etWrap=document.createElement('div'); etWrap.style.cssText='display:flex;flex-direction:column;gap:2px;align-items:center';
   const etLbl=document.createElement('div'); etLbl.style.cssText=COL_S; etLbl.textContent='Enroute Time';
   const etInp=document.createElement('input'); etInp.type='text'; etInp.inputMode='text';
   etInp.value=fl.enrouteTime||''; etInp.placeholder='00+00';
-  etInp.style.cssText=S+';width:80px;text-align:right';
+  etInp.style.cssText=S+';width:80px;text-align:center';
   etInp.addEventListener('change',e=>setFlight('enrouteTime',e.target.value));
-  etWrap.appendChild(etLbl); etWrap.appendChild(etInp); fiCol.appendChild(etWrap);
+  etWrap.appendChild(etLbl); etWrap.appendChild(etInp);   // placed beside Souls in the Route column (.97)
 
   // Dispatch Desk
   const ddWrap=document.createElement('div'); ddWrap.style.cssText='display:flex;flex-direction:column;gap:2px';
@@ -3304,6 +3397,7 @@ function renderPreflight(c) {
     const sl=document.createElement('div'); sl.style.cssText=COL_S; sl.textContent='Souls';
     sw.appendChild(sl); sw.appendChild(solInp);
     soulsRow.appendChild(sw);
+    soulsRow.appendChild(etWrap);
     _soulsRow = soulsRow;
   }
 
@@ -3335,7 +3429,6 @@ function renderPreflight(c) {
   const fuSec2=document.createElement('div'); fuSec2.style.cssText=SEC_S; fuSec2.textContent='Fuel'; fuCol.appendChild(fuSec2);
   fuCol.appendChild(ic('Block',      numInp('fuelBlock','64px')));
   fuCol.appendChild(ic('Min Takeoff',numInp('fuelTrip','64px')));
-  fuCol.appendChild(ic('Enrt Brn',numInp('enrtBrnFuel','64px')));
   // Pln Arr Fuel — color-coded: <30 red fill, <25 red fill+text
   {
     const arrFuelEl = document.createElement('input'); arrFuelEl.type='text'; arrFuelEl.inputMode='decimal';
@@ -3884,8 +3977,20 @@ function renderPreflight(c) {
   eprRow.appendChild(tpsBtn);
   const tpsSpacer=document.createElement('div'); tpsSpacer.style.cssText='width:10px;flex-shrink:0';
   eprRow.appendChild(tpsSpacer);
+  // Climb Ltd box after each landing distance (.100): O/W → pfOwClimbLtd,
+  // E/O → pfClimbLtd (the original single flag). Yes = red, No = green.
+  const mkClimbLtd = (key) => {
+    const on = !!fl[key];
+    const clt = document.createElement('input');
+    clt.type = 'text'; clt.readOnly = true; clt.value = on ? 'Yes' : 'No';
+    clt.style.cssText = S + ';width:58px;text-align:center;font-weight:800;cursor:pointer;-webkit-user-select:none;user-select:none;color:' + (on ? 'var(--red)' : 'var(--green)') + ';border-color:' + (on ? 'var(--red)' : 'var(--green)') + ';background:' + (on ? 'var(--red-l)' : 'var(--green-l)');
+    clt.addEventListener('click', () => setFlight(key, !fl[key]));
+    return ic('Climb Ltd', clt);
+  };
   eprRow.appendChild(ic('O/W Landing', owLandInp));
+  eprRow.appendChild(mkClimbLtd('pfOwClimbLtd'));
   eprRow.appendChild(ic('E/O Landing', eoLandInp));
+  eprRow.appendChild(mkClimbLtd('pfClimbLtd'));
   pfCol.appendChild(eprRow);
 
   // ── NADP + Altitudes (moved to Performance column) ───────────────────────
@@ -3969,7 +4074,7 @@ function renderPreflight(c) {
   const ptowLimit=(fl.acType||'777-200ER')==='777-300ER'?777.0:650.0;
   const ptowOver=parseFloat(fl.ptow||0)>ptowLimit;
   ptowInp.style.cssText=S+';width:68px;text-align:right'+(ptowOver?';color:var(--red)':'');
-  ptowInp.addEventListener('change',e=>{ setFlight('ptow',e.target.value); fl.ptow=e.target.value; ptowInp.style.color=(parseFloat(e.target.value)||0)>(((fl.acType||'777-200ER')==='777-300ER'?777:650))?'var(--red)':'var(--text)'; checkPTOW(); });
+  ptowInp.addEventListener('change',e=>{ setFlight('ptow',e.target.value); fl.ptow=e.target.value; ptowInp.style.color=(parseFloat(e.target.value)||0)>(((fl.acType||'777-200ER')==='777-300ER'?777:650))?'var(--red)':'var(--text)'; });
 
   const towInp2=document.createElement('input'); towInp2.type='text'; towInp2.inputMode='decimal'; towInp2.value=fl.tow?(parseFloat(fl.tow).toFixed(1)):''; towInp2.placeholder='000.0';
   towInp2.addEventListener('blur',()=>{ const v=parseFloat(towInp2.value); if(!isNaN(v)) towInp2.value=v.toFixed(1); }); towInp2.style.cssText=S+';width:68px;text-align:right'; towInp2.addEventListener('change',e=>setFlight('tow',e.target.value));
@@ -3979,6 +4084,7 @@ function renderPreflight(c) {
   acwInp2.addEventListener('input',()=>{ acwInp2.style.background = acwFillBg(acwInp2.value); });
   acwInp2.addEventListener('blur',()=>{ const v=parseFloat(acwInp2.value); if(!isNaN(v)) acwInp2.value=v.toFixed(1); acwInp2.style.background = acwFillBg(acwInp2.value); });
   acwInp2.addEventListener('change',e=>{ setFlight('acWeight',e.target.value); acwInp2.style.background = acwFillBg(e.target.value); });
+  { const v = parseFloat(fl.acWeight); if (!isNaN(v) && v > acLimits(fl).taxi) { acwInp2.style.color = 'var(--red)'; acwInp2.style.borderColor = 'var(--red)'; acwInp2.style.fontWeight = '800'; } }
 
   // ATOW input
   const atowInp=document.createElement('input'); atowInp.type='text'; atowInp.inputMode='decimal';
@@ -3993,7 +4099,6 @@ function renderPreflight(c) {
       ptowInp.value = ptowVal;
       ptowInp.style.color = (atowVal+3.0) > (((fl.acType||'777-200ER')==='777-300ER'?777:650)) ? 'var(--red)' : 'var(--green)';
       fl.ptow = ptowVal;
-      checkPTOW();
     }
   });
 
@@ -4414,7 +4519,7 @@ function renderPreflight(c) {
   }
   // â”€â”€ end route card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // Run PTOW check on load in case value already over limit
+  // Parking-brake trap on every draw (Disp Wt over max taxi, not yet acknowledged)
   checkPTOW();
 
 }
@@ -4949,6 +5054,11 @@ const now = new Date();
       ${fl.takeoffTime
         ? `<div class="tz-label">Elapsed</div>
            <div class="tz-time" id="elapsed-display" style="color:var(--blue);font-variant-numeric:tabular-nums">${elapsedStr(fl.takeoffTime)}</div>
+           <div style="display:flex;align-items:center;justify-content:center;gap:5px;margin-top:2px">
+             <button onclick="event.stopPropagation();adjustTakeoff(-1)" style="padding:1px 7px;border-radius:4px;border:1px solid var(--blue);background:var(--blue-ll);color:var(--blue);font-size:14px;font-weight:700;cursor:pointer;line-height:1.4">−</button>
+             <div class="tz-body" style="color:var(--text2);font-family:'SF Mono',monospace">T/O ${takeoffUtcStr(fl.takeoffTime)}Z</div>
+             <button onclick="event.stopPropagation();adjustTakeoff(1)" style="padding:1px 7px;border-radius:4px;border:1px solid var(--blue);background:var(--blue-ll);color:var(--blue);font-size:14px;font-weight:700;cursor:pointer;line-height:1.4">+</button>
+           </div>
            <div class="tz-body" style="color:var(--text3)">tap to reset</div>`
         : `<div class="tz-label">${depCity} local</div>
            <div class="tz-time" style="color:var(--blue)">${fmt(localNow)}</div>
@@ -5257,6 +5367,19 @@ const now = new Date();
       </div>
     </div>`;
   }
+
+  // ── LAT/LONG cheat sheet (.97) — transcribed from the reference card ───
+  html += `<div class="section-label">Lat / Long</div>
+  <div class="card" style="margin-bottom:8px"><div style="padding:10px 14px;font-size:13px;line-height:1.6;color:var(--text)">
+    <div style="font-family:'SF Mono',monospace;font-weight:700">NDD.MM.M WDDD.MM.M <span style="font-family:inherit;font-weight:400;color:var(--text2)">(degrees decimal minutes in tenths)</span></div>
+    <div style="font-family:'SF Mono',monospace;font-size:12px;overflow-x:auto;white-space:nowrap;margin-top:4px">
+      N51.00.0W050.00.0 = 51N050W <span style="color:var(--text3)">(Voice)</span> = N5100.0W05000.0 <span style="color:var(--text3)">(FMS entry)</span> = 5150N <span style="color:var(--text3)">(Displayed)</span><br>
+      N51.00.0W150.00.0 = 51N150W <span style="color:var(--text3)">(Voice)</span> = N5100.0W15000.0 <span style="color:var(--text3)">(FMS entry)</span> = 51N50 <span style="color:var(--text3)">(Displayed)</span><br>
+      N51.30.0W050.00.0 = 51.3N050W <span style="color:var(--text3)">(Voice)</span> = N5130.0W05000.0 <span style="color:var(--text3)">(FMS entry)</span> = 5250N <span style="color:var(--text3)">(Displayed)</span><br>
+      <span style="display:inline-block;padding-left:9.5em">= H5150 <span style="color:var(--text3)">(Flight Plan)</span></span>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-top:6px">* Waypoints must be expanded and visually verified during preflight RTE and LEGS check, upon receipt of oceanic clearance, and approaching an oceanic waypoint (first tick)</div>
+  </div></div>`;
 
   // ── Body clock context (dynamic) ─────────────────────────────────────────
   if (depMin !== null && arrMin !== null) {
@@ -5594,6 +5717,19 @@ function setFlight(key, val) {
 }
 
 // -- Push current flight to Protocol --
+// PIN is never in source (.96): asked once, kept in its own localStorage key
+// (not in protocol_state), cleared automatically if the Worker rejects it.
+const PROTOCOL_PIN_KEY = 'protocol_push_pin';
+function getProtocolPin() {
+  let p = null;
+  try { p = localStorage.getItem(PROTOCOL_PIN_KEY); } catch(e) {}
+  if (p) return p;
+  p = window.prompt('Protocol PIN \u2014 asked once, stored on this device');
+  if (!p || !p.trim()) return null;
+  p = p.trim();
+  try { localStorage.setItem(PROTOCOL_PIN_KEY, p); } catch(e) {}
+  return p;
+}
 function protocolPushLabel(fl) {
   if (!fl.protocolPushedAt) return 'Not pushed yet';
   const mins = Math.round((Date.now() - new Date(fl.protocolPushedAt).getTime()) / 60000);
@@ -5613,11 +5749,13 @@ function setPushStatus(msg, kind) {
 function pushFlightToProtocol() {
   const fl = currentFlight();
   if (!fl.depDate) { setPushStatus('Set a departure date first', 'error'); return; }
+  const pin = getProtocolPin();
+  if (!pin) { setPushStatus('PIN required', 'error'); return; }
 
   const tripId = (fl.flightNum || ((fl.depCity||'XXX') + (fl.arrCity||'XXX'))) + '_' + fl.depDate;
   const theatre = (typeof detectTheatre === 'function') ? detectTheatre(fl.depCity || '', fl.arrCity || '') : null;
 
-  const depOffMin = cityOffset(fl.depCity, -420);
+  const depOffMin = cityOffset(fl.depCity, homeOffMin());
   const arrOffMin = cityOffset(fl.arrCity, 0);
 
   let direction = null;
@@ -5684,11 +5822,15 @@ function pushFlightToProtocol() {
   setPushStatus('Pushing\u2026', 'pending');
   fetch(PROTOCOL_SYNC_URL + '/flight', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-PIN': PROTOCOL_PIN },
+    headers: { 'Content-Type': 'application/json', 'X-PIN': pin },
     body: JSON.stringify({ record: record }),
   })
-    .then(r => r.json().then(d => ({ ok: r.ok, d: d })))
+    .then(r => r.text().then(t => { let d = {}; try { d = JSON.parse(t); } catch(e) {} return { ok: r.ok, status: r.status, d: d }; }))
     .then(res => {
+      if (res.status === 401 || res.status === 403) {
+        try { localStorage.removeItem(PROTOCOL_PIN_KEY); } catch(e) {}
+        setPushStatus('PIN rejected \u2014 tap again to re-enter', 'error'); return;
+      }
       if (!res.ok) { setPushStatus((res.d.error || 'Push failed'), 'error'); return; }
       setFlight('protocolPushedAt', new Date().toISOString());
     })
@@ -5705,7 +5847,7 @@ function renderRedispatch(c) {
   const now = new Date();
   const utcOffset = -7 * 60;
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  const localNow = new Date(utc + (cityOffset(fl.depCity, -420)) * 60000);
+  const localNow = new Date(utc + (cityOffset(fl.depCity, homeOffMin())) * 60000);
   const fmt = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   const minToHHMM = m => { const n=((m%1440)+1440)%1440; return `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`; };
   const toUTC = (localMin, off) => ((localMin - off) % 1440 + 1440) % 1440;
@@ -5714,7 +5856,7 @@ function renderRedispatch(c) {
 
   const depCity = fl.depCity || '—';
   const arrCity = fl.arrCity || '—';
-  const depOff  = cityOffset(depCity, -420);
+  const depOff  = cityOffset(depCity, homeOffMin());
   const arrOff  = cityOffset(arrCity, 600);
   const depObj  = (typeof CITY_LIST !== 'undefined' ? CITY_LIST : []).find(x=>x.v===depCity) || {off:depOff,tz:cityTZ(depCity)};
 
@@ -6510,7 +6652,7 @@ function updateBreakCountdowns() {
     const arrTime = fl.arrTime || '23:59';
     // Get city offsets (minutes from UTC) to convert local times to UTC
     const cityList = (typeof CITY_LIST !== 'undefined') ? CITY_LIST : [];
-    const depOffMin = cityOffset(fl.depCity, -420);
+    const depOffMin = cityOffset(fl.depCity, homeOffMin());
     const arrOffMin = cityOffset(fl.arrCity, depOffMin);
     if (depDate) {
       // Convert dep/arr local times to UTC for boundary calc
@@ -6585,7 +6727,7 @@ function captureFlightTime(prefix) {
   if (!state.flights) state.flights = [state.flight || {}];
   if (state.flightIdx === undefined) state.flightIdx = 0;
   const fl = state.flights[state.flightIdx] || {};
-  const depOff = {LAX:-420,DFW:-300,JFK:-240,CLT:-240,PHX:-420,MIA:-240}[fl.depCity||'PHX'] || -420;
+  const depOff = cityOffset(fl.depCity, homeOffMin());   // live DST offset (fixed map was an hour out all winter) (.96)
   const now = new Date();
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
   const isBreak = prefix === 'wake' || prefix === 'break2';
@@ -7367,7 +7509,7 @@ function renderArrival(c) {
   const inpS = 'padding:5px 6px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:13px;width:52px;text-align:right';
   const lblS = 'font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px';
   const fldS = 'display:flex;flex-direction:column;gap:2px';
-  html += freqBlockHtml('arrival', 'Arrival Frequencies', [{key:'arrAtisFreq',label:'ATIS',short:'ATIS'},{key:'arrTwrFreq',label:'Tower',short:'TWR'},{key:'arrGndFreq',label:'Ground',short:'GND'},{key:'arrRampFreq',label:'Ramp',short:'RAMP',opts:'arrRampOpts'}]);
+  html += freqBlockHtml('arrival', 'Arrival Frequencies', [{key:'arrAtisFreq',label:'ATIS',short:'ATIS'},{key:'arrTwrFreq',label:'Tower',short:'TWR'},{key:'arrGndFreq',label:'Ground',short:'GND'},{key:'arrRampFreq',label:'Ramp',short:'RAMP',opts:'arrRampOpts'},{key:'arrOpsFreq',label:'Operations',short:'OPS'},{key:'arrStar',label:'Arrival',short:'STAR',type:'sid',ph:'STAR'}]);
   html += `<div class="card" style="margin-bottom:8px">
     <div class="card-hdr" onclick="setFlight('arrAtisOpen', (document.getElementById('arr-atis-body')&&document.getElementById('arr-atis-body').style.display!=='none')?'':'1')" style="cursor:pointer;user-select:none"><div class="card-hdr-left"><div class="card-dot" style="background:var(--teal)"></div><div class="card-title">Arrival Weather / ATIS</div></div><div id="arr-atis-chv" style="font-size:11px;color:var(--text3);transition:transform 0.2s${fl.arrAtisOpen?';transform:rotate(180deg)':''}">▼</div></div>
     <div id="arr-atis-body" style="padding:10px 14px;display:${fl.arrAtisOpen?'flex':'none'};gap:10px">
@@ -7459,8 +7601,36 @@ function renderArrival(c) {
   }
 
   // ── Landing Assessment + Wind/X-Wind Limits — side-by-side columns ────────
+  {
+    // Landing distance / Climb Limited / weights (.97/.99). Max Ldg Wt defaults to the type limit. Ldg Wt vs Max Ldg Wt:
+    // over = red, at or under = green. Climb Limited independent of preflight.
+    const esc = v => String(v || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    const lwVal = arrLdgWtValue(fl), lwIsPrefill = !String(fl.arrLdgWt || '').trim() && lwVal !== '';
+    const mlwVal = arrMlwValue(fl);
+    const lw = parseFloat(lwVal), mlw = parseFloat(mlwVal);
+    const cmp = (!isNaN(lw) && !isNaN(mlw)) ? (lw > mlw ? 'var(--red)' : 'var(--green)') : '';
+    const bS = 'padding:6px 6px;border-radius:7px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:16px;font-weight:700;font-family:SF Mono,monospace;width:100%;box-sizing:border-box;text-align:center';
+    const lS2 = 'font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap';
+    const fld = (key, label, ph, extra) => '<div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0"><div style="' + lS2 + '">' + label + '</div>'
+      + '<input type="text" inputmode="decimal" maxlength="6" placeholder="' + ph + '" value="' + esc(fl[key]) + '" style="' + bS + (extra || '') + '" oninput="setFlightQuiet(\'' + key + '\', this.value.trim())" onchange="setFlight(\'' + key + '\', this.value.trim())"></div>';
+    const clOn = !!fl.arrClimbLtd;
+    var _arrLdgBoxes = '<div class="card" style="margin-bottom:8px"><div style="display:flex;gap:8px;padding:10px 12px;align-items:flex-end">'
+      + fld('arrLdgDist', 'Ldg Dist ft', '0000')
+      + '<div style="display:flex;flex-direction:column;gap:3px;flex:0.8;min-width:0"><div style="' + lS2 + '">Climb Ltd</div>'
+      + '<input type="text" readonly value="' + (clOn ? 'Yes' : 'No') + '" onclick="setFlight(\'arrClimbLtd\', ' + (clOn ? 'false' : 'true') + ')" style="' + bS + ';cursor:pointer;-webkit-user-select:none;user-select:none;color:' + (clOn ? 'var(--red)' : 'var(--green)') + ';border-color:' + (clOn ? 'var(--red)' : 'var(--green)') + ';background:' + (clOn ? 'var(--red-l)' : 'var(--green-l)') + '"></div>'
+      + '<div style="display:flex;flex-direction:column;gap:3px;flex:1.6;min-width:0"><div style="' + lS2 + '">Ldg Wt' + (lwIsPrefill ? ' <span style="text-transform:none;font-weight:600">(Disp \u2212 burn)</span>' : '') + '</div>'
+      + '<div style="display:flex;align-items:center;gap:4px">'
+      + '<button onclick="adjustArrLdgWt(-1)" style="padding:4px 9px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:16px;font-weight:700;cursor:pointer;flex-shrink:0">\u2212</button>'
+      + '<input type="text" inputmode="decimal" maxlength="6" placeholder="000.0" value="' + esc(lwVal) + '" style="' + bS + (cmp ? ';color:' + cmp + ';border-color:' + cmp : '') + '" onfocus="this.select()" onchange="setFlight(\'arrLdgWt\', this.value.trim())">'
+      + '<button onclick="adjustArrLdgWt(1)" style="padding:4px 9px;border-radius:6px;border:1px solid var(--border2);background:var(--surf2);color:var(--text);font-size:16px;font-weight:700;cursor:pointer;flex-shrink:0">+</button>'
+      + '</div></div>'
+      + '<div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0"><div style="' + lS2 + '">Max Ldg Wt' + (!String(fl.arrMlw || '').trim() ? ' <span style="text-transform:none;font-weight:600">(' + acLimits(fl).tag + ')</span>' : '') + '</div>'
+      + '<input type="text" inputmode="decimal" maxlength="6" placeholder="000.0" value="' + esc(mlwVal) + '" style="' + bS + '" onfocus="this.select()" onchange="setFlight(\'arrMlw\', this.value.trim())"></div>'
+      + '</div></div>';
+  }
   html += `<div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-start">
-  <div class="card" style="flex:1;min-width:0">
+  <div style="flex:1;min-width:0">${_arrLdgBoxes}
+  <div class="card">
     <div class="card-hdr"><div class="card-hdr-left"><div class="card-dot" style="background:var(--green)"></div><div class="card-title">AA 777 Standard Landing Assessment</div></div></div>
     <div style="padding:0">`;
   const landingCriteria = [
@@ -7495,7 +7665,7 @@ function renderArrival(c) {
       + '<div style="font-size:12px;font-weight:600;color:var(--text)">' + row.value + '</div>'
       + '</div>';
   });
-  html += '</div></div>';
+  html += '</div></div></div>';
   const rccSurface = ['DRY','WET','STANDING WATER / SLUSH','SNOW (WET & DRY)','COMPACTED SNOW','ICE'];
   const colS = 'font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px';
   html += `<div class="card" style="flex:1;min-width:0">
@@ -8035,7 +8205,7 @@ function updateDepInTimer() {
   try {
     // depTime is entered as departure city local — convert to UTC using depOff
     const cityList = (typeof CITY_LIST !== 'undefined') ? CITY_LIST : [];
-    const depOffMin = (cityList.find(x=>x.v===fl.depCity)||{off:-420}).off;
+    const depOffMin = cityOffset(fl.depCity, homeOffMin());
     const [dh, dm] = fl.depTime.split(':').map(Number);
     const depLocalMs = new Date(fl.depDate + 'T00:00:00Z').getTime() + dh*3600000 + dm*60000;
     const depMs = depLocalMs - depOffMin * 60000;  // UTC epoch
@@ -8076,6 +8246,51 @@ function handleTakeoffTap() {
     setFlight('brkTakeoff', utcH + ':' + utcM);
   }
   render();
+}
+
+// 777 weight limits, klbs (.99): structural MTOW, max taxi (parking brake),
+// max landing weight. -200 = 777-200ER, -300 = 777-300ER (default -200).
+function acLimits(fl) {
+  const is300 = (fl.acType || '777-200ER') === '777-300ER';
+  return is300 ? { mtow: 775.0, taxi: 777.0, mlw: 554.0, tag: '-300' } : { mtow: 648.0, taxi: 650.0, mlw: 460.0, tag: '-200' };
+}
+function arrMlwValue(fl) {
+  const o = String(fl.arrMlw || '').trim();
+  return o !== '' ? o : acLimits(fl).mlw.toFixed(1);
+}
+
+// Arrival landing weight (.98): prefill = Disp Wt − planned burn (ENRT BRN),
+// rounded to the nearest 1,000 lb. Typing or −/+ (1,000 lb) stores an
+// override in arrLdgWt; clearing the box returns to the prefill.
+function arrLdgWtPrefill(fl) {
+  const dw = parseFloat(fl.acWeight), brn = parseFloat(fl.enrtBrnFuel);
+  if (isNaN(dw) || isNaN(brn)) return '';
+  return Math.round(dw - brn).toFixed(1);
+}
+function arrLdgWtValue(fl) {
+  const o = String(fl.arrLdgWt || '').trim();
+  return o !== '' ? o : arrLdgWtPrefill(fl);
+}
+function adjustArrLdgWt(d) {
+  const fl = currentFlight();
+  const v = parseFloat(arrLdgWtValue(fl));
+  if (isNaN(v)) return;
+  setFlight('arrLdgWt', (Math.round(v) + d).toFixed(1));
+}
+
+// Late TAKEOFF tap → walk the takeoff time back a minute at a time (.97).
+// Never later than now. The break calculator's takeoff (UTC HH:MM) follows.
+function takeoffUtcStr(ms) {
+  const d = new Date(ms);
+  return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0');
+}
+function adjustTakeoff(dMin) {
+  const fl = currentFlight();
+  if (!fl.takeoffTime) return;
+  let t = fl.takeoffTime + dMin * 60000;
+  if (t > Date.now()) t = Date.now();
+  setFlightQuiet('takeoffTime', t);
+  setFlight('brkTakeoff', takeoffUtcStr(t));
 }
 
 function updateElapsedDisplay() {
@@ -8200,11 +8415,17 @@ function showCDILoader() {
     if (result.dispName     && !fl2.dispName)     setFlight('dispName',     result.dispName);
     // 4th crew box is always the #1 F/A (.88). CDI names are "LAST FIRST"
     // ("MEADE GREG") → first name, same style as the pilot boxes.
+    // Crew boxes from the CDI (.99): Capt, then F/O, F/B, F/C in that order,
+    // skipping me, into boxes 1–3; box 4 = #1 F/A. Loading a CDI is explicit,
+    // so these overwrite (a re-used slot no longer keeps last trip's names).
     {
-      const fa1 = (result.crew || []).find(cr => cr.seat === '#1 FA');
-      if (fa1 && fa1.name && !fl2.crewN4) {
-        const t = fa1.name.trim().split(/\s+/); const fn = t.length > 1 ? t[t.length - 1] : t[0];
-        setFlight('crewN4', fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase());
+      const crew = result.crew || [];
+      if (crew.length) {
+        const pilots = ['CA', 'FO', 'FB', 'FC'].map(s => crew.filter(cr => cr.seat === s)).reduce((a, b) => a.concat(b), [])
+          .filter(cr => !isMeCrew(cr.name, cr.emp)).slice(0, 3);
+        ['crewN1', 'crewN2', 'crewN3'].forEach((k, i) => setFlight(k, pilots[i] ? crewFirstName(pilots[i].name) : ''));
+        const fa1 = crew.find(cr => cr.seat === '#1 FA');
+        if (fa1 && fa1.name) setFlight('crewN4', crewFirstName(fa1.name));
       }
     }
     showCDIStatus('\u2713 CDI loaded \u2014 ' + (result.crew||[]).length + ' crew members', 'ok');
@@ -8749,6 +8970,27 @@ function saveCrewLog(log) {
 }
 // ── My Passport (localStorage, persists across flights) ─────────────────────
 const MY_PASSPORT_KEY = 'aa777_my_passport';
+// Is this crew member me? (.99) Employee number wins; otherwise BOTH name
+// tokens (first + last, any order) must match the passport name, so another
+// pilot who only shares a first name isn't dropped. Main build with no
+// passport set falls back to the old surname rule.
+function isMeCrew(name, emp) {
+  const p = getMyPassport();
+  const ne = v => String(v || '').replace(/\D/g, '').replace(/^0+/, '');
+  if (p.employeeNum && emp && ne(p.employeeNum) === ne(emp)) return true;
+  const toks = v => String(v || '').toUpperCase().split(/[^A-Z]+/).filter(t => t.length >= 2);
+  const mine = toks(p.myName), theirs = toks(name);
+  if (mine.length >= 2 && theirs.length >= 2) return theirs.slice(0, 2).every(t => mine.indexOf(t) >= 0) || mine.slice(0, 2).every(t => theirs.indexOf(t) >= 0);
+  if (!mine.length && !p.employeeNum && !IS_BETA) return theirs.indexOf('MINGO') >= 0;
+  return false;
+}
+function crewFirstName(cdiName) {
+  // CDI names are "LAST FIRST [MIDDLE]"
+  const t = String(cdiName || '').trim().split(/\s+/);
+  const fn = t.length > 1 ? t[1] : t[0];
+  return fn ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
+}
+
 function getMyPassport() {
   try { return JSON.parse(localStorage.getItem(MY_PASSPORT_KEY) || '{}'); } catch(e) { return {}; }
 }
@@ -9293,7 +9535,7 @@ function showFlightPlanLoader() {
                       'weightRestricted','weightRestrictLimit',
                       // frequencies (.87) — blank scrapes must not leave a previous airport's values
                       'pfMaintFreq','pfOpsFreq','pfAtisFreq','pfClncFreq','pfRampFreq','pfGndFreq','pfRampOpts',
-                      'depTwrFreq','arrAtisFreq','arrTwrFreq','arrGndFreq','arrRampFreq','arrRampOpts',
+                      'depTwrFreq','arrAtisFreq','arrTwrFreq','arrGndFreq','arrRampFreq','arrRampOpts','arrOpsFreq','arrStar','enrtBrnFuel','rampWt',
                       'depSid','arrSkdUtc'];  // SID comes from the new route; none on the plan → blank (.88)
     rdFields.forEach(k => { if (!result[k]) setFlight(k, ''); });
     // Handle ORV — save to state; renderPreflight will draw the card on next render
@@ -9313,6 +9555,8 @@ function showFlightPlanLoader() {
     }
     // Apply all other parsed fields
     Object.entries(result).forEach(([k, v]) => { if (v !== null && v !== undefined && v !== '') setFlight(k, String(v)); });
+    // A plan with a crew block resets boxes 1–3, so a re-used slot can't keep a stale third pilot (.99)
+    if (result.crewBlockFound) ['crewN1','crewN2','crewN3'].forEach(k => { if (!result[k]) setFlight(k, ''); });
     // Runway dropdown compares the index numerically — and a new plan must
     // never inherit the previous flight's selected row.
     setFlight('activeRwyIdx', Number(result.activeRwyIdx) || 0);
@@ -10147,6 +10391,21 @@ function parseCCIFlightPlan(text) {
     }
   }
 
+  // ── Arrival STAR from the route (.97) ───────────────────────────────────
+  // Last token before the destination airport, same shape as a SID (letters,
+  // 1–2 digits, optional letter: RYDER2, MARLN6, NUGRA2H). The fix directly
+  // before it is its transition: "… ELKEY RYDER2 KLAX" → "ELKEY.RYDER2".
+  // No STAR-shaped token there → left blank.
+  if (result.route) {
+    const tk = result.route.split(/\s+/);
+    let j = tk.length - 1;
+    if (/^[A-Z]{3,4}$/.test(tk[j] || '')) j--;
+    const star = tk[j] || '', tr = tk[j - 1] || '';
+    if (/^[A-Z]{3,6}\d{1,2}[A-Z]?$/.test(star)) {
+      result.arrStar = (tr && tr !== 'DCT' && /^[A-Z]{2,5}$/.test(tr)) ? tr + '.' + star : star;
+    }
+  }
+
   // ── Oceanic Route Verification ────────────────────────────────────────────
   // Starts at "OCEANIC ROUTE VERIFICATION", stops at the first of:
   //   - a line of 3+ dashes or equals (hard rule separator)
@@ -10252,20 +10511,22 @@ function parseCCIFlightPlan(text) {
 
   // ── Crew names from release signature block (PAGE with CAPT*/F/O/F/B) ─────
   // Format: "CAPT* STEPHEN PRITZKER" / "F/O PAUL LUISI" / "F/B CHAD MINGO"
-  // Skip any line where last name is MINGO; fill crewN1, crewN2, crewN3 in order
+  // Skip me (passport name); fill crewN1, crewN2, crewN3 in order
   {
     const crewSlots = [];
-    const crewRe = /^\s*(CAPT\*?|F\/O|F\/B|RO\s*\d?)\s+([A-Z]+)\s+([A-Z]+)/i;
+    const crewRe = /^\s*(CAPT\*?|F\/O|F\/B|F\/C|RO\s*\d?)\s+([A-Z]+)\s+([A-Z]+)/i;
+    let crewFound = false;
     for (const l of lines) {
       const m = l.match(crewRe);
       if (m) {
+        crewFound = true;
         const firstName = m[2].charAt(0).toUpperCase() + m[2].slice(1).toLowerCase();
-        const lastName  = m[3].toUpperCase();
-        if (lastName === 'MINGO') continue;  // skip Chad
+        if (isMeCrew(m[2] + ' ' + m[3], '')) continue;  // skip me (passport) (.99)
         crewSlots.push(firstName);
         if (crewSlots.length === 3) break;
       }
     }
+    if (crewFound) result.crewBlockFound = '1';
     if (crewSlots[0]) result.crewN1 = crewSlots[0];
     if (crewSlots[1]) result.crewN2 = crewSlots[1];
     if (crewSlots[2]) result.crewN3 = crewSlots[2];
@@ -10662,6 +10923,20 @@ function parseCCIFlightPlan(text) {
     }
   }
 
+  // ── Planned ramp weight (.101) — line below ON TIME ANALYSIS:
+  // "PAYLOAD 54321 ZFW 412345 RAMP WT 645678 PTOW 642678". lbs → klbs.
+  // Searched per line, then across the joined text in case extraction split it.
+  {
+    const rwRe = /RAMP\s+WT\s+(\d{3,6}(?:\.\d)?)/i;
+    let m = null;
+    for (const l of lines) { m = l.match(rwRe); if (m) break; }
+    if (!m) m = lines.join(' ').match(rwRe);
+    if (m) {
+      const n = parseFloat(m[1]);
+      if (!isNaN(n)) result.rampWt = (n > 9999 ? n / 1000 : n).toFixed(1);
+    }
+  }
+
   // ── Scheduled arrival (UTC) from ON TIME ANALYSIS (.93) ───────────────────
   // "SKDBLK 0019 0948 0013 1020 SKD 2310Z/1610L 0930Z/1030L" → 0930.
   // Compared with the planned/adjusted arrival for the Cruise PA early/late.
@@ -10697,6 +10972,7 @@ function parseCCIFlightPlan(text) {
       const rf = arr.rampFreqs || [];
       if (rf.length === 1) result.arrRampFreq = rf[0].freq;
       if (rf.length > 1) result.arrRampOpts = JSON.stringify(rf);
+      result.arrOpsFreq  = nf(arr.opsFreq);   // (.97)
     }
   }
 
