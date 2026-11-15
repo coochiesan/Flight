@@ -536,7 +536,7 @@ function freqBlockHtml(page, title, fields, inline) {
 }
 
 // -- Protocol sync --
-const APP_BUILD = '2026-11-09.101' + (IS_BETA ? '-beta' : '');
+const APP_BUILD = '2026-11-14.102' + (IS_BETA ? '-beta' : '');
 const PROTOCOL_SYNC_URL = 'https://protocol-sync.coochiesan.workers.dev';
 // Private CORS proxy (Cloudflare Worker, build .90). corsproxy.io began
 // answering HTTP 401 to unauthenticated requests (17 Oct 2026), which took
@@ -1820,6 +1820,7 @@ function showLayoverNotesPopup() {
   const doneBtn = document.createElement('button'); doneBtn.textContent = 'Done';
   doneBtn.style.cssText = 'flex:1;padding:9px;border-radius:8px;border:1px solid var(--teal);background:var(--teal-l);color:var(--teal);font-size:13px;font-weight:700;cursor:pointer';
   doneBtn.addEventListener('click', () => { saveNote(); pop.remove(); render(); });
+  { const pb = makeNotesPasteButton(ta); pb.style.padding = '9px 14px'; pb.style.fontWeight = '700'; btnRow.appendChild(pb); }
   btnRow.appendChild(doneBtn);
   pop.appendChild(btnRow);
 
@@ -2567,6 +2568,45 @@ function oceanicNotesTheatre(depCity, arrCity) {
   return null;
 }
 
+// Paste button for the notes screens (.102). Reads the clipboard (e.g. text
+// copied in Apple Notes) and inserts it at the cursor, then fires the normal
+// 'input' event so each screen's own save logic runs unchanged.
+function makeNotesPasteButton(ta) {
+  const btn = document.createElement('button');
+  const LABEL = '📋 Paste';
+  btn.textContent = LABEL;
+  btn.style.cssText = 'padding:6px 14px;border-radius:8px;border:1px solid var(--green);background:var(--green-l);color:var(--green);font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;white-space:nowrap';
+  let t = null;
+  const flash = msg => { btn.textContent = msg; clearTimeout(t); t = setTimeout(() => { btn.textContent = LABEL; }, 3000); };
+  btn.addEventListener('click', async () => {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error('unsupported');
+      const raw = await navigator.clipboard.readText();
+      if (!raw) { flash('Clipboard empty'); return; }
+      const LS = String.fromCharCode(0x2028), PS = String.fromCharCode(0x2029), NB = String.fromCharCode(0xa0);
+      const txt = raw.replace(/\r\n?/g, '\n').split(LS).join('\n').split(PS).join('\n').split(NB).join(' ');
+      const a = typeof ta.selectionStart === 'number' ? ta.selectionStart : ta.value.length;
+      const b = typeof ta.selectionEnd === 'number' ? ta.selectionEnd : a;
+      ta.value = ta.value.slice(0, a) + txt + ta.value.slice(b);
+      try { ta.focus(); ta.setSelectionRange(a + txt.length, a + txt.length); } catch (e) {}
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      flash('Pasted ✓');
+    } catch (e) {
+      try { ta.focus(); } catch (e2) {}
+      flash('Hold in text → Paste');
+    }
+  });
+  return btn;
+}
+// Puts the Paste button next to an existing Close button in a notes header bar
+function addNotesPaste(bar, closeBtn, ta) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:8px;flex-shrink:0';
+  bar.insertBefore(wrap, closeBtn);
+  wrap.appendChild(makeNotesPasteButton(ta));
+  wrap.appendChild(closeBtn);
+}
+
 function showOceanicNotes(theatre) {
   const existing = document.getElementById('oceanic-notes-pop'); if (existing) { existing.remove(); return; }
   if (!state.oceanicNotesByTheatre) state.oceanicNotesByTheatre = {};
@@ -2595,6 +2635,7 @@ function showOceanicNotes(theatre) {
     else delete state.oceanicNotesByTheatre[theatre];
     saveState();
   });
+  addNotesPaste(bar, cls, ta);
   body.appendChild(ta); pop.appendChild(bar); pop.appendChild(body);
   document.body.appendChild(pop);
 }
@@ -2837,7 +2878,7 @@ function crewInput(key, placeholder, value) {
   return `<input type="text" placeholder="${placeholder}" maxlength="12" value="${v}" style="${INP_S}" onchange="setFlight('${key}',this.value)" />`;
 }
 
-// â”€â”€ Render: Preflight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Render: Preflight ──────────────────────────────────────────────────────
 // Route section editor open/closed — session-only UI state (build .84)
 let _routeEditOpen = false;
 // NADP custom-values boxes open — session-only (build .85)
@@ -2897,7 +2938,7 @@ function renderPreflight(c) {
     el.addEventListener('change', e=>setFlight(key,e.target.value)); return el;
   };
 
-  // â”€â”€ PTOW warning popup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── PTOW warning popup ────────────────────────────────────────────────────
   // Parking-brake trap (.100): keyed ONLY to Disp Wt — the aircraft-computed
   // weight entered from the box. Pops when an over-limit weight is entered or
   // the page draws with one; "Acknowledge" silences it for that exact value
@@ -2924,7 +2965,7 @@ function renderPreflight(c) {
     }
   };
 
-  // â”€â”€ Crosswind limit chart popup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Crosswind limit chart popup ──────────────────────────────────────────
   const checkXwind = (xw) => {
     const existing = document.getElementById('xwind-popup');
     if (existing) existing.remove();
@@ -2965,7 +3006,7 @@ function renderPreflight(c) {
     document.body.appendChild(pop);
   };
 
-  // â”€â”€ Tailwind limit popup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Tailwind limit popup ─────────────────────────────────────────────────
   const checkTailwind = (hw) => {
     const existing = document.getElementById('tailwind-popup');
     if (existing) existing.remove();
@@ -2990,7 +3031,7 @@ function renderPreflight(c) {
     document.body.appendChild(pop);
   };
 
-  // â”€â”€ Slot nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Slot nav ──────────────────────────────────────────────────────────────
   const routeStr = fl.depCity && fl.depDate ? fl.depCity+' → '+(fl.arrCity||'?')+' · '+fl.depDate : 'Flight '+(flightIdx+1);
   const depLabel = fl.flightNum ? 'American '+fl.flightNum+' · '+routeStr : routeStr;
   const nav=document.createElement('div');
@@ -3124,7 +3165,7 @@ function renderPreflight(c) {
 
   const ic = (labelTxt, el) => { const d=document.createElement('div'); d.style.cssText='display:flex;flex-direction:column;gap:2px;align-items:flex-start'; const l=document.createElement('div'); l.style.cssText=COL_S; l.textContent=labelTxt; d.appendChild(l); d.appendChild(el); return d; };
   const irow = (...items) => { const d=document.createElement('div'); d.style.cssText='display:flex;align-items:flex-end;gap:4px'; items.forEach(i=>d.appendChild(i)); return d; };
-  // â”€â”€ Flight info + Route + Fuel (4-column grid) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Flight info + Route + Fuel (4-column grid) ────────────────────────────
   const grid1=document.createElement('div'); grid1.style.cssText='display:grid;grid-template-columns:auto auto auto 1fr;gap:6px 0;padding:5px 0;border-bottom:1px solid var(--border);width:100%';grid1.style.columnGap='0';
 
   // Left column: Flight info
@@ -3638,7 +3679,7 @@ function renderPreflight(c) {
   grid1.appendChild(wxCol);
   inner.appendChild(grid1);
 
-  // â”€â”€ Performance + Weights (2-column grid) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Performance + Weights (2-column grid) ─────────────────────────────────
   const grid2=document.createElement('div'); grid2.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:6px 0;padding:5px 0;border-bottom:1px solid var(--border);width:100%';
 
   // Left: Performance + Fuel
@@ -3875,6 +3916,7 @@ function renderPreflight(c) {
   const dryWetVal=fl.perf2||'DRY';
   const dryWetBtn=document.createElement('button');
   dryWetBtn.textContent=fl.perf2||'DRY';
+  if (typeof fl.perf2 === 'string' && fl.perf2 !== fl.perf2.toUpperCase()) fl.perf2 = fl.perf2.toUpperCase();   // plans loaded before .102
   const dryWetColor=()=>{ const v=fl.perf2||'DRY'; return v==='WET'?['var(--amber)','var(--amber-l)']:['var(--blue)','var(--blue-ll)']; };
   const dryWetApply=()=>{ const [c,b]=dryWetColor(); dryWetBtn.style.borderColor=c; dryWetBtn.style.background=b; dryWetBtn.style.color=c; dryWetBtn.textContent=fl.perf2||'DRY'; };
   dryWetBtn.style.cssText='padding:3px 10px;border-radius:5px;border:1px solid;font-size:14px;font-weight:700;cursor:pointer;align-self:flex-end';
@@ -4120,7 +4162,7 @@ function renderPreflight(c) {
     ic('Disp Wt', acwInp2)
   ));
 
-  // â”€â”€ Altitudes inline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Altitudes inline ─────────────────────────────────────────────────────────
   // ── Winds section ──────────────────────────────────────────────────────────
   const wndSec=document.createElement('div'); wndSec.style.cssText=SEC_S; wndSec.textContent='Winds'; wtCol.appendChild(wndSec);
   wtCol.appendChild(wxRow5);   // Wind Dir / Kts / Gust / X-Wind / Headwind
@@ -4136,7 +4178,7 @@ function renderPreflight(c) {
   grid2.appendChild(wtCol);
   inner.appendChild(grid2);
 
-  // â”€â”€ Button row: Flight Brief + Takeoff Brief + Reference Guide â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Button row: Flight Brief + Takeoff Brief + Reference Guide ──────────────
   const btnRow=document.createElement('div'); btnRow.style.cssText='display:flex;gap:6px;margin-top:8px';
 
   // Flight Brief button
@@ -4474,7 +4516,7 @@ function renderPreflight(c) {
   btnRow.appendChild(tbBtn);
   inner.appendChild(btnRow);
 
-  // â”€â”€ Route card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Route card ─────────────────────────────────────────────────────────────
   const routeFull = (fl.route || '').trim();
   const routeCard = document.createElement('div');
   routeCard.className = 'card';
@@ -4517,7 +4559,7 @@ function renderPreflight(c) {
     const html = fieldReportCardHtml(frData[dc] || null, dc, 'dep-fr');
     if (html) { const w = document.createElement('div'); w.innerHTML = html; c.appendChild(w.firstElementChild); }
   }
-  // â”€â”€ end route card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── end route card ──────────────────────────────────────────────────────────
 
   // Parking-brake trap on every draw (Disp Wt over max taxi, not yet acknowledged)
   checkPTOW();
@@ -4525,7 +4567,7 @@ function renderPreflight(c) {
 }
 
 
-// â”€â”€ METAR fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── METAR fetch ───────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════
 // ── PA scripts: Gate (Preflight) · Cruise (Flight) · Descent (Arrival) — .93 ──
 // Wording lives in editable TEMPLATES (state.paTemplates[kind]), saved on the
@@ -5349,7 +5391,7 @@ const now = new Date();
     const idlColor = idlNote.dir === 'westbound' ? '#f59e0b' : '#3b82f6';
     const idlBg    = idlNote.dir === 'westbound' ? 'var(--amber-l)' : 'var(--blue-ll)';
     const dayNote  = idlNote.dir === 'westbound'
-      ? (arrCity === 'Auckland' || arrCity === 'Sydney' ? '+2 days' : '+1 or +2 days')
+      ? (arrCity === 'AKL' || arrCity === 'SYD' ? '+2 days' : '+1 or +2 days')
       : 'same or −1 day';
     html += `<div style="background:${idlBg};border:1px solid ${idlColor};border-radius:var(--radius);padding:10px 14px;margin-bottom:8px">
       <div style="font-size:13px;font-weight:700;color:${idlColor};margin-bottom:4px">
@@ -5437,52 +5479,69 @@ function showBreakCalc() {
 
   // ── Row 1: T/O · Enrt · LDG ───────────────────────────────────────────────
   const toInp=document.createElement('input'); toInp.type='text'; toInp.inputMode='numeric'; toInp.maxLength=5;
-  toInp.value=(fl2.brkTakeoff&&fl2.brkTakeoff.trim())||fl2.depTime||''; toInp.placeholder='HH:MM';
+  // Field is UTC; the scheduled departure time is stored local, so convert it (.102)
+  toInp.value=(fl2.brkTakeoff&&fl2.brkTakeoff.trim())||(toMin(fl2.depTime)!==null?toHM(localToUTC(toMin(fl2.depTime))):''); toInp.placeholder='HH:MM';
   toInp.style.cssText=S2+';width:80px;text-align:center';
 
-  // ── Enroute drum picker (two selects) ────────────────────────────────────
-  const _enrtRaw=(fl2.brkEnrt||fl2.enrouteTime||'').replace(/[+:]/g,'');
-  const _enrtH0=Math.max(0,Math.min(19,_enrtRaw.length>=3?parseInt(_enrtRaw.slice(0,-2))||0:0));
-  const _enrtM0=Math.max(0,Math.min(59,_enrtRaw.length>=2?parseInt(_enrtRaw.slice(-2))||0:0));
+  // ── Arrival (UTC) — editable; flight time is derived from the two UTC times (.102) ──
+  const arrOffMin   = cityOffset(fl2.arrCity, depOffMin);
+  const schedDepUTC = toMin(fl2.depTime)!==null ? toHM(localToUTC(toMin(fl2.depTime))) : '';
+  const etaUTC      = toMin(fl2.arrTime)!==null ? toHM(toMin(fl2.arrTime)-arrOffMin) : '';
+  const enrtFallback= enrtToMin((fl2.brkEnrt||fl2.enrouteTime||'').trim());
+  const actualToUTC = fl2.takeoffTime ? takeoffUtcStr(fl2.takeoffTime) : '';
+  // Default landing = the flight's arrival time in UTC; if none, takeoff + planned enroute time
+  const defaultLdg  = () => { if(etaUTC) return etaUTC; const t=toMin(toInp.value); return (t!==null&&enrtFallback!==null)?toHM(t+enrtFallback):''; };
+  const ldgInp=document.createElement('input'); ldgInp.type='text'; ldgInp.inputMode='numeric'; ldgInp.maxLength=5; ldgInp.placeholder='HH:MM';
+  ldgInp.style.cssText=S2+';width:90px;text-align:center';
+  ldgInp.value=(fl2.brkLanding&&fl2.brkLanding.trim())||defaultLdg();
 
-  const DS = S2+';width:60px;font-size:20px;font-weight:700;text-align:center;padding:8px 4px;height:52px;border-radius:8px';
-  const _hSel=document.createElement('select'); _hSel.style.cssText=DS;
-  for(let h=0;h<20;h++){ const o=document.createElement('option'); o.value=String(h).padStart(2,'0'); o.textContent=String(h).padStart(2,'0'); if(h===_enrtH0) o.selected=true; _hSel.appendChild(o); }
-  const _mSel=document.createElement('select'); _mSel.style.cssText=DS;
-  for(let m=0;m<60;m++){ const o=document.createElement('option'); o.value=String(m).padStart(2,'0'); o.textContent=String(m).padStart(2,'0'); if(m===_enrtM0) o.selected=true; _mSel.appendChild(o); }
-  const _drumSep=document.createElement('div');
-  _drumSep.style.cssText='font-size:22px;font-weight:800;color:var(--text2);line-height:1;padding:0 2px';
-  _drumSep.textContent='+';
-  const _drumWrap=document.createElement('div');
-  _drumWrap.style.cssText='display:flex;align-items:center;gap:2px';
-  _drumWrap.appendChild(_hSel); _drumWrap.appendChild(_drumSep); _drumWrap.appendChild(_mSel);
+  const ftDisp=document.createElement('div');
+  ftDisp.style.cssText=S2+';width:110px;text-align:center;color:var(--blue);font-weight:700;background:var(--blue-ll);border-color:var(--blue);box-sizing:border-box';
+  ftDisp.textContent='--';
+  const mkSub=()=>{ const d=document.createElement('div'); d.style.cssText='font-size:11px;color:var(--text3);font-family:SF Mono,monospace;margin-top:3px;text-align:center;white-space:nowrap'; return d; };
+  const toSub=mkSub(), ldgSub=mkSub();
 
-  const enrtInp={value:String(_enrtH0).padStart(2,'0')+String(_enrtM0).padStart(2,'0'),addEventListener:()=>{}};
-  function _syncEnrt(){
-    enrtInp.value=_hSel.value+_mSel.value;
-    setFlight('brkEnrt',enrtInp.value);
-    if(typeof recalc==='function') recalc();
-  }
-  _hSel.addEventListener('change', _syncEnrt);
-  _mSel.addEventListener('change', _syncEnrt);
+  // Flight time as HHMM — read by the split / window maths below
+  const enrtInp={value:''};
+  const syncEnrt=()=>{
+    const t=toMin(toInp.value), l=toMin(ldgInp.value);
+    if(t!==null&&l!==null){
+      const d=(l-t+1440)%1440;
+      enrtInp.value=String(Math.floor(d/60)).padStart(2,'0')+String(d%60).padStart(2,'0');
+      ftDisp.textContent=Math.floor(d/60)+'h '+String(d%60).padStart(2,'0')+'m';
+    } else { enrtInp.value=''; ftDisp.textContent='--'; }
+    toSub.textContent = !toInp.value ? '' : (actualToUTC&&toInp.value===actualToUTC) ? 'actual takeoff' : (schedDepUTC&&toInp.value===schedDepUTC) ? 'scheduled dep' : 'manual';
+    ldgSub.textContent= !ldgInp.value ? '' : (etaUTC&&ldgInp.value===etaUTC) ? 'flight ETA' : 'manual';
+  };
+  toInp.addEventListener('input', ()=>{ fmtTime(toInp); syncEnrt(); });           // recalc() follows via the listener wired below
+  ldgInp.addEventListener('input', ()=>{ fmtTime(ldgInp); syncEnrt(); recalc(); });
+  ldgInp.addEventListener('change',()=>{ if(validTime(ldgInp.value)||!ldgInp.value) setFlightQuiet('brkLanding',ldgInp.value); });
 
-  const ldgDisp=document.createElement('div');
-  ldgDisp.style.cssText=S2+';width:80px;text-align:center;color:var(--blue);font-weight:700;background:var(--blue-ll);border-color:var(--blue)';
-  ldgDisp.textContent='--:--';
+  // Back to the flight's own times (actual takeoff if started, else scheduled; arrival ETA)
+  const useFltBtn=document.createElement('button'); useFltBtn.textContent='↺ Flight times';
+  useFltBtn.style.cssText='padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surf2);color:var(--text2);font-size:13px;font-weight:700;cursor:pointer;align-self:center';
+  useFltBtn.addEventListener('click',()=>{
+    toInp.value=actualToUTC||schedDepUTC||'';
+    setFlightQuiet('brkTakeoff',toInp.value);
+    setFlightQuiet('brkLanding','');
+    ldgInp.value=defaultLdg();
+    syncEnrt(); equalSplit(); recalc();
+  });
+
+  // recalc() writes these two; the visible fields are the inputs above
+  const ldgDisp={textContent:'',style:{}}, toUTCDisp={textContent:'',style:{}};
 
   const winDisp=document.createElement('div');
   winDisp.style.cssText='font-size:13px;text-align:center;font-family:SF Mono,monospace;color:var(--text3);font-weight:600';
 
   const r1=document.createElement('div'); r1.style.cssText='display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap';
-  // Fixed-width columns so labels and boxes all align
   const mkFixedCol=(w,...els)=>{ const d=document.createElement('div'); d.style.cssText='display:flex;flex-direction:column;width:'+w+'px'; els.forEach(e=>d.appendChild(e)); return d; };
-  const toUTCDisp=document.createElement('div');
-  toUTCDisp.style.cssText='font-size:11px;color:var(--text3);font-family:SF Mono,monospace;margin-top:3px;text-align:center';
-  // All inputs same width (90px) so boxes are aligned
-  toInp.style.width='90px'; ldgDisp.style.width='90px';
-  r1.appendChild(mkFixedCol(90,mkL('T/O (UTC)'),toInp,toUTCDisp));
-  r1.appendChild(mkFixedCol(120,mkL('Enrt  HH + MM'),_drumWrap));
-  r1.appendChild(mkFixedCol(90,mkL('LDG UTC'),ldgDisp));
+  toInp.style.width='90px';
+  r1.appendChild(mkFixedCol(120,mkL('Dep / T/O (UTC)'),toInp,toSub));
+  r1.appendChild(mkFixedCol(120,mkL('Arr / LDG (UTC)'),ldgInp,ldgSub));
+  r1.appendChild(mkFixedCol(110,mkL('Flight time'),ftDisp));
+  r1.appendChild(useFltBtn);
+  syncEnrt();
   pop.appendChild(r1); pop.appendChild(winDisp);
 
   // ── Offset selects ─────────────────────────────────────────────────────────
@@ -6112,17 +6171,13 @@ function adjustArrTime(deltaMins) {
   const fl = currentFlight();
   const parts = (fl.arrTime || '00:00').split(':');
   let total = (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0) + deltaMins;
-  const dateStr = fl.arrDate || '';
-  if (total < 0 || total >= 1440) {
-    const dir = total < 0 ? -1 : 1;
-    total = ((total % 1440) + 1440) % 1440;
-    if (dateStr) {
-      const d = new Date(dateStr + 'T12:00:00');
-      d.setDate(d.getDate() + dir);
-      setFlight('arrDate', d.toISOString().split('T')[0]);
-      return;
-    }
+  // Rolling past midnight moves the arrival date AND the time (.102 — the time change used to be dropped)
+  if ((total < 0 || total >= 1440) && fl.arrDate) {
+    const d = new Date(fl.arrDate + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + (total < 0 ? -1 : 1));
+    setFlightQuiet('arrDate', d.toISOString().split('T')[0]);
   }
+  total = ((total % 1440) + 1440) % 1440;
   setFlight('arrTime', String(Math.floor(total / 60)).padStart(2,'0') + ':' + String(total % 60).padStart(2,'0'));
   setTimeout(updateFlightRemaining, 0);
 }
@@ -6154,8 +6209,7 @@ function deleteFlightSlot() {
     state.flightIdx = 0;
   } else {
     state.flights.splice(state.flightIdx, 1);
-    state.flightIdx = Math.min(state.flightIdx, state.flights.length - 1);
-    state.flights[state.flightIdx] = {};
+    state.flightIdx = Math.min(state.flightIdx, state.flights.length - 1);   // (.102) no longer blanks the neighbouring flight
   }
   state.flight = state.flights[state.flightIdx] || {};
   saveState();
@@ -6742,7 +6796,7 @@ function captureFlightTime(prefix) {
     dd   = String(nowObj.getUTCDate()).padStart(2,'0');
   } else {
     const offset = prefix === 'arr'
-      ? ((function(){ const c = (CITY_LIST||[{v:'LHR',off:60}]).find(x=>x.v===(fl.arrCity||'LHR')); return c?c.off:60; })())
+      ? cityOffset(fl.arrCity, depOff)   // (.102) also covers saved custom cities
       : depOff;
     const ln = new Date(utcMs + offset * 60000);
     h    = String(ln.getHours()).padStart(2,'0');
@@ -6944,6 +6998,14 @@ function showCrewSwapBrief() {
   }, 100);
 }
 
+// After a confirmed divert: switch to Flight tab → Arrival and pull the field's ATIS (.102).
+// Lives outside showDivertPopup because that function has its own local setMode().
+function divertGoToArrival() {
+  if (tab !== 'flight') setTab('flight');
+  setMode('arrival');
+  setTimeout(() => { if (tab === 'flight' && mode === 'arrival' && typeof fetchArrATIS === 'function') fetchArrATIS(); }, 200);
+}
+
 function showDivertPopup() {
   const existing = document.getElementById('divert-pop');
   if (existing) { existing.remove(); return; }
@@ -7097,14 +7159,41 @@ function showDivertPopup() {
     const confirmBtn = document.createElement('button');
     confirmBtn.textContent = 'Confirm Divert \u2192 ' + (ap.icao||ap.iata);
     confirmBtn.style.cssText = 'flex:2;padding:14px;border-radius:10px;border:none;background:var(--amber);color:#000;font-size:22px;font-weight:800;cursor:pointer';
+    // Two-step confirm (.102): first tap arms, second tap diverts. Nothing on the
+    // Arrival page changes until the second tap; it un-arms itself after 10 s.
+    const divertCode = ap.icao || ap.iata;
+    const cancelDivertBtn = document.createElement('button');
+    cancelDivertBtn.textContent = 'Cancel';
+    cancelDivertBtn.style.cssText = 'padding:14px 18px;border-radius:10px;border:1px solid var(--border2);background:var(--surf);color:var(--text2);font-size:22px;font-weight:700;cursor:pointer;display:none';
+    let divertArmed = false, divertTimer = null;
+    const disarmDivert = () => {
+      divertArmed = false; clearTimeout(divertTimer);
+      confirmBtn.textContent = 'Confirm Divert → ' + divertCode;
+      confirmBtn.style.background = 'var(--amber)'; confirmBtn.style.color = '#000';
+      cancelDivertBtn.style.display = 'none';
+    };
     confirmBtn.addEventListener('click', () => {
+      if (!divertArmed) {
+        divertArmed = true;
+        confirmBtn.textContent = 'Tap again to DIVERT to ' + divertCode;
+        confirmBtn.style.background = 'var(--red)'; confirmBtn.style.color = '#fff';
+        cancelDivertBtn.style.display = '';
+        divertTimer = setTimeout(disarmDivert, 10000);
+        return;
+      }
+      clearTimeout(divertTimer);
       const city = ap.iata || ap.icao;
-      setFlight('arrCity', city);
-      ['arrRwy','arrRwyNum','arrRwyDir','arrAtis','arrAtisRaw','arrTemp','arrDew','arrQnh','arrWindDir','arrWindSpd','arrWindGust'].forEach(k => setFlight(k,''));
+      const prev = currentFlight().arrCity || '';
+      if (prev && prev !== city && !currentFlight().origArrCity) setFlightQuiet('origArrCity', prev);
+      // Old destination's runway / weather no longer apply
+      ['arrRwy','arrRwyNum','arrRwyDir','arrAtis','arrAtisRaw','arrTemp','arrDew','arrQnh','arrWindDir','arrWindSpd','arrWindGust'].forEach(k => setFlightQuiet(k, ''));
+      setFlightQuiet('arrCity', city);
+      if (typeof preloadRefGuide === 'function') setTimeout(preloadRefGuide, 200);
       pop.remove();
-      const arrTab = document.querySelector('[data-tab="arrival"]') || document.querySelector('.nav-tab:nth-child(3)');
-      if (arrTab) arrTab.click();
+      // Show the Arrival page for the divert field (the old code looked for a tab element that no longer exists)
+      divertGoToArrival();
     });
+    cancelDivertBtn.addEventListener('click', disarmDivert);
 
     // Close card button — returns to active list
     if (onClose) {
@@ -7116,6 +7205,7 @@ function showDivertPopup() {
     } else {
       actRow.appendChild(pinBtn); actRow.appendChild(confirmBtn);
     }
+    confirmBtn.after(cancelDivertBtn);
     card.appendChild(actRow);
     return card;
   }
@@ -7524,13 +7614,13 @@ function renderArrival(c) {
           <div style="display:flex;align-items:flex-end;gap:4px">
             <div style="${fldS}">
               <div style="${lblS}">RWY</div>
-              <select style="${inpS};width:52px" onchange="setFlight('arrRwyNum',this.value);setFlight('arrRwy',(this.value)+(fl.arrRwyDir||''));recalcArrWind()">
+              <select style="${inpS};width:52px" onchange="setFlight('arrRwyNum',this.value);setFlight('arrRwy',(this.value)+(currentFlight().arrRwyDir||''));recalcArrWind()">
                 ${Array.from({length:36},(_,i)=>String(i+1).padStart(2,'0')).map(n=>`<option value="${n}" ${(fl.arrRwyNum||fl.arrRwy&&fl.arrRwy.match(/^\d+/)?.[0].padStart(2,'0')||'')===n?'selected':''}>${n}</option>`).join('')}
               </select>
             </div>
             <div style="${fldS}">
               <div style="${lblS}">&nbsp;</div>
-              <select style="${inpS};width:44px" onchange="setFlight('arrRwyDir',this.value);setFlight('arrRwy',(fl.arrRwyNum||'')+(this.value));recalcArrWind()">
+              <select style="${inpS};width:44px" onchange="setFlight('arrRwyDir',this.value);setFlight('arrRwy',(currentFlight().arrRwyNum||'')+(this.value));recalcArrWind()">
                 ${[['','−'],['L','L'],['R','R'],['C','C']].map(([v,l])=>`<option value="${v}" ${(fl.arrRwyDir||'')===(v)?'selected':''}>${l}</option>`).join('')}
               </select>
             </div>
@@ -7886,6 +7976,7 @@ function showApproachNotes() {
     else delete state.arrNotesByCity[arrCity];
     saveState();
   });
+  addNotesPaste(bar, cls, ta);
   body.appendChild(ta);
 
   // ── Approach Frequencies — freeform North / South Arrival columns ────────
@@ -8039,6 +8130,7 @@ function showArrivalNotes() {
     else delete state.arrNotesByCity[arrCity];
     saveState();
   });
+  addNotesPaste(bar, cls, ta);
   body.appendChild(ta); pop.appendChild(bar); pop.appendChild(body);
   document.body.appendChild(pop);
 }
@@ -8073,6 +8165,7 @@ function showDepartureNotes() {
     else delete state.depNotesByCity[depCity];
     saveState();
   });
+  addNotesPaste(bar, cls, ta);
   body.appendChild(ta); p.appendChild(body); document.body.appendChild(p);
 }
 
@@ -8332,7 +8425,6 @@ setTimeout(updateFlightRemaining, 500);
 loadState();
 updateClock();
 setInterval(updateClock, 30000);
-setInterval(updateBreakCountdowns, 1000);
 setInterval(updateDepInTimer, 10000);
 render();
 // Silently preload reference guide images for offline use
@@ -9862,7 +9954,7 @@ function parseCCIFlightPlan(text) {
       if (raw === 'TO') result.perf1 = 'TO';
       else if (raw === 'TO1') result.perf1 = 'TO-1';
       else if (raw === 'TO2') result.perf1 = 'TO-2';
-      result.perf2 = powerMatch[2].charAt(0).toUpperCase() + powerMatch[2].slice(1).toLowerCase(); // Dry/Wet
+      result.perf2 = powerMatch[2].toUpperCase(); // DRY / WET — must match the DRY/WET toggle values (.102)
     }
     // Planned temp from WBD data line: "TEMP PTOW ATOW ZFW FUEL" header then
     // values. The 3rd column's header varies — "ATOW" on redispatch legs,
@@ -9893,10 +9985,9 @@ function parseCCIFlightPlan(text) {
   const runways = [];
   let inThrustSection = false;
   for (const l of lines) {
-    if (/THRUST\s*\/\s*V[-\s]?SPEED/i.test(l)) { inThrustSection = true; console.log('[THRUST] section start'); continue; }
+    if (/THRUST\s*\/\s*V[-\s]?SPEED/i.test(l)) { inThrustSection = true; continue; }
     if (inThrustSection) {
       const t = l.trim();
-      console.log('[THRUST] line:', JSON.stringify(t));
       if (!t || /^[-*=]+$/.test(t)) continue;
       if (/^[*]{3,}\s*[A-Z]/.test(t) && !/THRUST|RWY|FLAP|EPR|MAX|N1/i.test(t)) break;
       // Skip column header rows (RWY FLAP A/C EPR V1 VR V2 AT MTOW)
